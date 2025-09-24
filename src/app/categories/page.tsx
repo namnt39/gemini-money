@@ -1,8 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 
 import { supabase } from "@/lib/supabaseClient";
 import { createTranslator } from "@/lib/i18n";
+import RemoteImage from "@/components/RemoteImage";
 
 type CategoryRecord = {
   id: string;
@@ -26,7 +26,7 @@ const getNatureLabel = (value: string | undefined | null, t: ReturnType<typeof c
 async function getCategories() {
   const { data, error } = await supabase
     .from("subcategories")
-    .select("id, name, image_url, transaction_nature, categories(transaction_nature)")
+    .select("id, name, image_url, categories(transaction_nature)")
     .order("name", { ascending: true });
 
   if (error) {
@@ -94,7 +94,7 @@ export default async function CategoriesPage() {
                   <tr key={category.id}>
                     <td className="px-4 py-3">
                       {category.image_url ? (
-                        <Image
+                        <RemoteImage
                           src={category.image_url}
                           alt={category.name}
                           width={32}

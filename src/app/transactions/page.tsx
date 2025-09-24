@@ -31,7 +31,6 @@ type TransactionQueryRow = {
   subcategories?: {
     id: string;
     name: string | null;
-    transaction_nature?: string | null;
     categories?:
       | { name: string | null; transaction_nature?: string | null }[]
       | { name: string | null; transaction_nature?: string | null }
@@ -169,7 +168,6 @@ async function fetchTransactions(filters: TransactionFilters): Promise<{ rows: T
         subcategories (
           id,
           name,
-          transaction_nature,
           categories (
             name,
             transaction_nature
@@ -188,10 +186,7 @@ async function fetchTransactions(filters: TransactionFilters): Promise<{ rows: T
 
   if (filters.nature !== "all") {
     const natureCode = natureCodeMap[filters.nature];
-    query = query.or(
-      `transaction_nature.eq.${natureCode},categories.transaction_nature.eq.${natureCode}`,
-      { foreignTable: "subcategories" }
-    );
+    query = query.eq("categories.transaction_nature", natureCode, { foreignTable: "subcategories" });
   }
 
   const startIndex = (filters.page - 1) * filters.pageSize;
@@ -210,8 +205,7 @@ async function fetchTransactions(filters: TransactionFilters): Promise<{ rows: T
     const subcategory = row.subcategories;
     const rawCategories = subcategory?.categories;
     const parentCategory = Array.isArray(rawCategories) ? rawCategories[0] : rawCategories ?? null;
-    const transactionNature =
-      subcategory?.transaction_nature ?? parentCategory?.transaction_nature ?? null;
+    const transactionNature = parentCategory?.transaction_nature ?? null;
 
     return {
       id: row.id,
