@@ -23,6 +23,9 @@ type TransactionQueryRow = {
   id: string;
   date: string;
   amount: number;
+  final_price: number | null;
+  cashback_percent: number | null;
+  cashback_amount: number | null;
   notes: string | null;
   from_account_id: string | null;
   to_account_id: string | null;
@@ -42,6 +45,9 @@ type TransactionListItem = {
   id: string;
   date: string;
   amount: number;
+  finalPrice: number | null;
+  cashbackPercent: number | null;
+  cashbackAmount: number | null;
   notes: string | null;
   fromAccount?: { id: string | null; name: string | null; image_url: string | null } | null;
   toAccount?: { id: string | null; name: string | null; image_url: string | null } | null;
@@ -58,7 +64,7 @@ type AccountRecord = {
 };
 
 const DEFAULT_PAGE_SIZE = 10;
-const PAGE_SIZE_OPTIONS = [10, 25, 50];
+const PAGE_SIZE_OPTIONS = [5, 10, 25, 50];
 const natureCodeMap: Record<Exclude<NatureFilter, "all">, string> = {
   income: "IN",
   expense: "EX",
@@ -160,6 +166,9 @@ async function fetchTransactions(filters: TransactionFilters): Promise<{ rows: T
         id,
         date,
         amount,
+        final_price,
+        cashback_percent,
+        cashback_amount,
         notes,
         from_account_id,
         to_account_id,
@@ -186,7 +195,7 @@ async function fetchTransactions(filters: TransactionFilters): Promise<{ rows: T
 
   if (filters.nature !== "all") {
     const natureCode = natureCodeMap[filters.nature];
-    query = query.eq("categories.transaction_nature", natureCode, { foreignTable: "subcategories" });
+    query = query.eq("subcategories.categories.transaction_nature", natureCode);
   }
 
   const startIndex = (filters.page - 1) * filters.pageSize;
@@ -211,6 +220,9 @@ async function fetchTransactions(filters: TransactionFilters): Promise<{ rows: T
       id: row.id,
       date: row.date,
       amount: row.amount,
+      finalPrice: row.final_price ?? null,
+      cashbackPercent: row.cashback_percent ?? null,
+      cashbackAmount: row.cashback_amount ?? null,
       notes: row.notes,
       fromAccount: row.from_account ?? null,
       toAccount: row.to_account ?? null,
@@ -238,11 +250,23 @@ async function fetchAccounts(): Promise<AccountRecord[]> {
 }
 
 type TransactionsPageProps = {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?:
+    | Record<string, string | string[] | undefined>
+    | Promise<Record<string, string | string[] | undefined>>;
 };
 
+async function resolveSearchParams(
+  input?:
+    | Record<string, string | string[] | undefined>
+    | Promise<Record<string, string | string[] | undefined>>
+) {
+  if (!input) return {} as Record<string, string | string[] | undefined>;
+  return input instanceof Promise ? await input : input;
+}
+
 export default async function TransactionsPage({ searchParams }: TransactionsPageProps) {
-  const filters = sanitizeFilters(searchParams);
+  const resolvedParams = await resolveSearchParams(searchParams);
+  const filters = sanitizeFilters(resolvedParams);
   const t = createTranslator();
 
   const [{ rows, count }, accounts] = await Promise.all([

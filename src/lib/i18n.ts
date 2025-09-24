@@ -49,6 +49,9 @@ const resources = {
         account: "Account",
         notes: "Notes",
         amount: "Amount",
+        finalPrice: "Final Price",
+        cashback: "Back",
+        totalBack: "Total Back",
       },
       tabs: {
         all: "All",
@@ -75,6 +78,18 @@ const resources = {
         pageLabel: "Page",
         of: "of",
       },
+      actions: {
+        editTooltip: "Edit transaction",
+        editPlaceholder: "Editing will be available soon!",
+        deleteTooltip: "Delete transaction",
+        deleteSelected: "Delete selected",
+        deleteSelectedConfirm: "Are you sure you want to delete the selected transactions?",
+        deleteSelectedSuccess: "Selected transactions deleted successfully.",
+      },
+      summary: {
+        selectedTotals: "Selected totals",
+        mixedBack: "Multiple values",
+      },
     },
     transactionForm: {
       title: "Add New Transaction",
@@ -98,11 +113,17 @@ const resources = {
         submit: "Save Transaction",
         submitting: "Saving...",
       },
+      addAccount: "Add Account",
+      addAccountPlaceholder: "Account creation is coming soon.",
       addCategory: {
         expense: "Add Expense Category",
         income: "Add Income Category",
         transfer: "Add Transfer Category",
         debt: "Add Debt Category",
+      },
+      confirmLeave: "Are you sure you want to go back? Unsaved changes will be lost.",
+      hints: {
+        transferSameAccount: "Avoid choosing the same account for both sides of a transfer.",
       },
       errors: {
         sameTransferAccount: "You cannot transfer between the same account.",
@@ -196,6 +217,9 @@ const resources = {
         account: "Tài khoản",
         notes: "Ghi chú",
         amount: "Số tiền",
+        finalPrice: "Giá cuối",
+        cashback: "Hoàn tiền",
+        totalBack: "Tổng hoàn",
       },
       tabs: {
         all: "Tất cả",
@@ -222,6 +246,18 @@ const resources = {
         pageLabel: "Trang",
         of: "trên",
       },
+      actions: {
+        editTooltip: "Chỉnh sửa giao dịch",
+        editPlaceholder: "Tính năng chỉnh sửa sẽ sớm có mặt!",
+        deleteTooltip: "Xóa giao dịch",
+        deleteSelected: "Xóa đã chọn",
+        deleteSelectedConfirm: "Bạn có chắc muốn xóa các giao dịch đã chọn không?",
+        deleteSelectedSuccess: "Đã xóa các giao dịch đã chọn.",
+      },
+      summary: {
+        selectedTotals: "Tổng các mục đã chọn",
+        mixedBack: "Nhiều giá trị",
+      },
     },
     transactionForm: {
       title: "Thêm Giao dịch mới",
@@ -245,11 +281,17 @@ const resources = {
         submit: "Lưu Giao dịch",
         submitting: "Đang lưu...",
       },
+      addAccount: "Thêm tài khoản",
+      addAccountPlaceholder: "Tính năng thêm tài khoản sẽ sớm có mặt.",
       addCategory: {
         expense: "Thêm danh mục Chi tiêu",
         income: "Thêm danh mục Thu nhập",
         transfer: "Thêm danh mục Chuyển khoản",
         debt: "Thêm danh mục Công nợ",
+      },
+      confirmLeave: "Bạn có chắc muốn quay lại? Thông tin chưa lưu sẽ bị mất.",
+      hints: {
+        transferSameAccount: "Hãy tránh chọn cùng một tài khoản cho hai chiều chuyển khoản.",
       },
       errors: {
         sameTransferAccount: "Không thể chuyển khoản trong cùng một tài khoản.",
