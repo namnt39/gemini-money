@@ -4,6 +4,16 @@ import { useState, useEffect } from "react";
 import { Account } from "@/app/transactions/add/page";
 import AmountInput from "./AmountInput"; // Tái sử dụng AmountInput xịn sò của chúng ta
 
+const parseAmount = (value: string) => {
+  const numeric = parseFloat(value.replace(/,/g, ""));
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+
+const parsePercent = (value: string) => {
+  const numeric = parseFloat(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+
 type CashbackInputProps = {
   transactionAmount: string; // Số tiền của giao dịch chính
   account: Account; // Thông tin tài khoản được chọn
@@ -21,6 +31,7 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
     if (!account.is_cashback_eligible || numericAmount === 0) {
       setPercent('');
       setFixedAmount('');
+      onCashbackChange({ percent: 0, amount: 0 });
       return;
     }
 
@@ -29,12 +40,35 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
 
     // Nếu cashback tính ra vượt quá mức tối đa, lấy mức tối đa
     const finalCashback = Math.min(calculatedCashback, max_cashback_amount || Infinity);
-    
-    // Tự động điền vào các ô
-    setPercent((cashback_percentage! * 100).toString());
-    setFixedAmount(finalCashback.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","));
 
-  }, [transactionAmount, account]);
+    // Tự động điền vào các ô
+    const autoPercent = ((cashback_percentage || 0) * 100).toString();
+    const autoAmount = finalCashback.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+    setPercent(autoPercent);
+    setFixedAmount(autoAmount);
+    onCashbackChange({
+      percent: parsePercent(autoPercent),
+      amount: parseAmount(autoAmount),
+    });
+  }, [transactionAmount, account, onCashbackChange]);
+
+
+  const handlePercentChange = (value: string) => {
+    setPercent(value);
+    onCashbackChange({
+      percent: parsePercent(value),
+      amount: parseAmount(fixedAmount),
+    });
+  };
+
+  const handleAmountChange = (value: string) => {
+    setFixedAmount(value);
+    onCashbackChange({
+      percent: parsePercent(percent),
+      amount: parseAmount(value),
+    });
+  };
 
 
   return (
@@ -46,7 +80,7 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
           <input
             type="number"
             value={percent}
-            onChange={(e) => setPercent(e.target.value)}
+            onChange={(e) => handlePercentChange(e.target.value)}
             max={100} // Giới hạn max
             min={0} // Không cho số âm
             placeholder={`${(account.cashback_percentage || 0) * 100}%`}
@@ -55,7 +89,7 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
         </div>
         {/* Tái sử dụng AmountInput cho ô nhập số tiền cashback */}
         <div className="-mt-6">
-          <AmountInput value={fixedAmount} onChange={setFixedAmount} />
+          <AmountInput value={fixedAmount} onChange={handleAmountChange} />
         </div>
       </div>
       <div className="text-xs text-blue-700 bg-blue-100 p-2 rounded-md">
