@@ -190,3 +190,24 @@ export async function deleteTransaction(transactionId: string) {
 
   return { success: true, message: "Transaction deleted." };
 }
+
+export async function deleteTransactions(transactionIds: string[]) {
+  if (!Array.isArray(transactionIds) || transactionIds.length === 0) {
+    return { success: false, message: "No transactions selected." };
+  }
+
+  const { error } = await supabase
+    .from("transactions")
+    .delete()
+    .in("id", transactionIds);
+
+  if (error) {
+    console.error("Unable to delete transactions:", error);
+    return { success: false, message: "Failed to delete selected transactions." };
+  }
+
+  revalidatePath("/");
+  revalidatePath("/transactions");
+
+  return { success: true, message: "Transactions deleted." };
+}

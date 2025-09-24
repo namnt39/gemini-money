@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Account, Subcategory, Person } from "./page";
 import { createTransaction } from "../actions";
@@ -10,8 +10,30 @@ import CashbackInput from "@/components/forms/CashbackInput";
 import { createTranslator } from "@/lib/i18n";
 
 type Tab = "expense" | "income" | "transfer" | "debt";
-type TransactionFormProps = { accounts: Account[]; subcategories: Subcategory[]; people: Person[] };
+type TransactionFormProps = {
+  accounts: Account[];
+  subcategories: Subcategory[];
+  people: Person[];
+  returnTo: string;
+  createdCategoryId?: string;
+  initialTab?: Tab;
+};
 type CashbackInfo = { percent: number; amount: number };
+
+type PersistedState = {
+  activeTab: Tab;
+  amount: string;
+  fromAccountId: string;
+  toAccountId: string;
+  subcategoryId: string;
+  personId: string;
+  notes: string;
+  date: string;
+  cashbackPercent: number;
+  cashbackAmount: number;
+};
+
+const STORAGE_KEY = "transactions:add-form-state";
 
 const tabColors: Record<Tab, string> = {
   expense: "bg-red-500",
@@ -34,31 +56,78 @@ const TabButton = ({
   <button
     type="button"
     onClick={onClick}
-    className={`w-full py-3 text-sm font-medium transition-colors rounded-t-lg ${
-      active ? `${color} text-white shadow-md` : "text-gray-500 hover:bg-gray-100 border-b-2 border-gray-200"
+    className={`w-full rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+      active ? `${color} text-white shadow-md` : "border border-gray-200 bg-white text-gray-500 hover:bg-gray-100"
     }`}
   >
     {title}
   </button>
 );
 
-export default function TransactionForm({ accounts, subcategories, people }: TransactionFormProps) {
+export default function TransactionForm({
+  accounts,
+  subcategories,
+  people,
+  returnTo,
+  createdCategoryId,
+  initialTab,
+}: TransactionFormProps) {
   const t = createTranslator();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>("expense");
-  const [amount, setAmount] = useState("");
-  const [fromAccountId, setFromAccountId] = useState("");
-  const [toAccountId, setToAccountId] = useState("");
-  const [subcategoryId, setSubcategoryId] = useState("");
-  const [personId, setPersonId] = useState("");
-  const [notes, setNotes] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
 
-  // Cashback
+  const persistedStateRef = useRef<PersistedState | null>(null);
+  if (persistedStateRef.current === null && typeof window !== "undefined") {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        persistedStateRef.current = JSON.parse(raw) as PersistedState;
+      }
+    } catch {
+      persistedStateRef.current = null;
+    }
+  }
+
+  const persistedState = persistedStateRef.current;
+  const defaultTabValue: Tab = persistedState?.activeTab ?? initialTab ?? "expense";
+  const defaultAmount = persistedState?.amount ?? "";
+  const defaultFromAccount = persistedState?.fromAccountId ?? "";
+  const defaultToAccount = persistedState?.toAccountId ?? "";
+  const defaultSubcategory = persistedState?.subcategoryId ?? "";
+  const defaultPerson = persistedState?.personId ?? "";
+  const defaultNotes = persistedState?.notes ?? "";
+  const defaultDate = persistedState?.date ?? new Date().toISOString().split("T")[0];
+  const defaultCashbackPercent = persistedState?.cashbackPercent ?? 0;
+  const defaultCashbackAmount = persistedState?.cashbackAmount ?? 0;
+
+  const [activeTab, setActiveTab] = useState<Tab>(defaultTabValue);
+  const [amount, setAmount] = useState(defaultAmount);
+  const [fromAccountId, setFromAccountId] = useState(defaultFromAccount);
+  const [toAccountId, setToAccountId] = useState(defaultToAccount);
+  const [subcategoryId, setSubcategoryId] = useState(defaultSubcategory);
+  const [personId, setPersonId] = useState(defaultPerson);
+  const [notes, setNotes] = useState(defaultNotes);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [date, setDate] = useState(defaultDate);
+
   const [showCashback, setShowCashback] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
-  const [cashbackInfo, setCashbackInfo] = useState<CashbackInfo>({ percent: 0, amount: 0 });
+  const [cashbackInfo, setCashbackInfo] = useState<CashbackInfo>({
+    percent: defaultCashbackPercent,
+    amount: defaultCashbackAmount,
+  });
+
+  const initialSnapshotRef = useRef<PersistedState>({
+    activeTab: defaultTabValue,
+    amount: defaultAmount,
+    fromAccountId: defaultFromAccount,
+    toAccountId: defaultToAccount,
+    subcategoryId: defaultSubcategory,
+    personId: defaultPerson,
+    notes: defaultNotes,
+    date: defaultDate,
+    cashbackPercent: defaultCashbackPercent,
+    cashbackAmount: defaultCashbackAmount,
+  });
 
   // Determine whether to show cashback input based on the selected expense account
   useEffect(() => {
@@ -69,11 +138,11 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
     } else {
       setShowCashback(false);
       setSelectedAccount(null);
-      setCashbackInfo({ percent: 0, amount: 0 }); // reset when switching to an account without cashback support
+      setCashbackInfo({ percent: 0, amount: 0 });
     }
   }, [fromAccountId, accounts]);
 
-  const getTransactionNature = (sub: Subcategory): string | null => {
+  const getTransactionNature = useCallback((sub: Subcategory): string | null => {
     if (sub.transaction_nature) {
       return sub.transaction_nature;
     }
@@ -82,28 +151,65 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
       return sub.categories[0]?.transaction_nature ?? null;
     }
     return sub.categories.transaction_nature ?? null;
-  };
+  }, []);
 
-  const mapToOptions = (item: {
-    id: string;
-    name: string;
-    image_url?: string | null;
-    type?: string | null;
-    is_group?: boolean | null;
-  }) => ({
-    id: item.id,
-    name: item.name,
-    imageUrl: item.image_url || undefined,
-    type:
-      item.type ||
-      (typeof item.is_group === "boolean" ? (item.is_group ? "Group" : "Individual") : undefined),
-  });
+  const mapNatureToTab = useCallback((nature: string | null | undefined): Tab | null => {
+    if (!nature) return null;
+    const normalized = nature.toUpperCase();
+    if (normalized === "IN") return "income";
+    if (normalized === "TR") return "transfer";
+    if (normalized === "DE") return "debt";
+    if (normalized === "EX") return "expense";
+    return null;
+  }, []);
 
-  const expenseCategories = subcategories.filter((s) => getTransactionNature(s) === "EX").map(mapToOptions);
-  const incomeCategories = subcategories.filter((s) => getTransactionNature(s) === "IN").map(mapToOptions);
-  const transferCategories = subcategories.filter((s) => getTransactionNature(s) === "TR").map(mapToOptions);
-  const accountsWithOptions = accounts.map(mapToOptions);
-  const peopleWithOptions = people.map(mapToOptions);
+  useEffect(() => {
+    if (!createdCategoryId) {
+      return;
+    }
+    const newlyCreated = subcategories.find((item) => item.id === createdCategoryId);
+    if (!newlyCreated) {
+      return;
+    }
+    setSubcategoryId(createdCategoryId);
+    const mappedTab = mapNatureToTab(getTransactionNature(newlyCreated));
+    if (mappedTab && mappedTab !== activeTab) {
+      setActiveTab(mappedTab);
+    }
+  }, [createdCategoryId, subcategories, mapNatureToTab, getTransactionNature, activeTab]);
+
+  const mapToOptions = useCallback(
+    (item: {
+      id: string;
+      name: string;
+      image_url?: string | null;
+      type?: string | null;
+      is_group?: boolean | null;
+    }) => ({
+      id: item.id,
+      name: item.name,
+      imageUrl: item.image_url || undefined,
+      type:
+        item.type ||
+        (typeof item.is_group === "boolean" ? (item.is_group ? "Group" : "Individual") : undefined),
+    }),
+    []
+  );
+
+  const expenseCategories = useMemo(
+    () => subcategories.filter((s) => getTransactionNature(s) === "EX").map(mapToOptions),
+    [subcategories, getTransactionNature, mapToOptions]
+  );
+  const incomeCategories = useMemo(
+    () => subcategories.filter((s) => getTransactionNature(s) === "IN").map(mapToOptions),
+    [subcategories, getTransactionNature, mapToOptions]
+  );
+  const transferCategories = useMemo(
+    () => subcategories.filter((s) => getTransactionNature(s) === "TR").map(mapToOptions),
+    [subcategories, getTransactionNature, mapToOptions]
+  );
+  const accountsWithOptions = useMemo(() => accounts.map(mapToOptions), [accounts, mapToOptions]);
+  const peopleWithOptions = useMemo(() => people.map(mapToOptions), [people, mapToOptions]);
 
   const addCategoryLabel = useMemo(() => {
     switch (activeTab) {
@@ -118,7 +224,18 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
     }
   }, [activeTab, t]);
 
-  const handleAddCategory = () => {
+  const handleAddAccount = useCallback(() => {
+    alert(t("transactionForm.addAccountPlaceholder"));
+  }, [t]);
+
+  const returnPath = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("tab", activeTab);
+    const query = params.toString();
+    return query ? `/transactions/add?${query}` : "/transactions/add";
+  }, [activeTab]);
+
+  const handleAddCategory = useCallback(() => {
     const natureMap: Record<Tab, string> = {
       expense: "EX",
       income: "IN",
@@ -126,11 +243,58 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
       debt: "DE",
     };
     const params = new URLSearchParams({
-      returnTo: "/transactions/add",
       defaultNature: natureMap[activeTab],
     });
+    params.set("returnTo", encodeURIComponent(returnPath));
     router.push(`/categories/add?${params.toString()}`);
-  };
+  }, [activeTab, returnPath, router]);
+
+  const isDirty = useMemo(() => {
+    const snapshot = initialSnapshotRef.current;
+    return (
+      snapshot.activeTab !== activeTab ||
+      snapshot.amount !== amount ||
+      snapshot.fromAccountId !== fromAccountId ||
+      snapshot.toAccountId !== toAccountId ||
+      snapshot.subcategoryId !== subcategoryId ||
+      snapshot.personId !== personId ||
+      snapshot.notes !== notes ||
+      snapshot.date !== date ||
+      snapshot.cashbackPercent !== cashbackInfo.percent ||
+      snapshot.cashbackAmount !== cashbackInfo.amount
+    );
+  }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo]);
+
+  const handleBack = useCallback(() => {
+    if (isDirty) {
+      const shouldLeave = confirm(t("transactionForm.confirmLeave"));
+      if (!shouldLeave) {
+        return;
+      }
+    }
+    router.push(returnTo);
+    router.refresh();
+  }, [isDirty, router, returnTo, t]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const payload: PersistedState = {
+      activeTab,
+      amount,
+      fromAccountId,
+      toAccountId,
+      subcategoryId,
+      personId,
+      notes,
+      date,
+      cashbackPercent: cashbackInfo.percent,
+      cashbackAmount: cashbackInfo.amount,
+    };
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    persistedStateRef.current = payload;
+  }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,29 +327,53 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
     alert(result.message);
 
     if (result.success) {
+      const today = new Date().toISOString().split("T")[0];
       setAmount("");
       setFromAccountId("");
       setToAccountId("");
       setSubcategoryId("");
       setPersonId("");
       setNotes("");
+      setDate(today);
       setCashbackInfo({ percent: 0, amount: 0 });
+      sessionStorage.removeItem(STORAGE_KEY);
+      const resetSnapshot: PersistedState = {
+        activeTab,
+        amount: "",
+        fromAccountId: "",
+        toAccountId: "",
+        subcategoryId: "",
+        personId: "",
+        notes: "",
+        date: today,
+        cashbackPercent: 0,
+        cashbackAmount: 0,
+      };
+      initialSnapshotRef.current = resetSnapshot;
+      persistedStateRef.current = resetSnapshot;
     }
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      {/* Tabs */}
-      <div className="flex">
-        <TabButton title={t("transactionForm.tabs.expense")} active={activeTab === "expense"} color={tabColors.expense} onClick={() => setActiveTab("expense")} />
-        <TabButton title={t("transactionForm.tabs.income")} active={activeTab === "income"} color={tabColors.income} onClick={() => setActiveTab("income")} />
-        <TabButton title={t("transactionForm.tabs.transfer")} active={activeTab === "transfer"} color={tabColors.transfer} onClick={() => setActiveTab("transfer")} />
-        <TabButton title={t("transactionForm.tabs.debt")} active={activeTab === "debt"} color={tabColors.debt} onClick={() => setActiveTab("debt")} />
+    <form onSubmit={handleSubmit} className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-gray-200 bg-gray-50 px-6 py-4 md:flex-row md:items-center md:justify-between">
+        <div className="grid flex-1 grid-cols-2 gap-2 md:grid-cols-4">
+          <TabButton title={t("transactionForm.tabs.expense")} active={activeTab === "expense"} color={tabColors.expense} onClick={() => setActiveTab("expense")} />
+          <TabButton title={t("transactionForm.tabs.income")} active={activeTab === "income"} color={tabColors.income} onClick={() => setActiveTab("income")} />
+          <TabButton title={t("transactionForm.tabs.transfer")} active={activeTab === "transfer"} color={tabColors.transfer} onClick={() => setActiveTab("transfer")} />
+          <TabButton title={t("transactionForm.tabs.debt")} active={activeTab === "debt"} color={tabColors.debt} onClick={() => setActiveTab("debt")} />
+        </div>
+        <button
+          type="button"
+          onClick={handleBack}
+          className="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 md:w-auto"
+        >
+          {t("common.back")}
+        </button>
       </div>
 
-      <div className="p-6 space-y-6 bg-gray-50 border-x border-b rounded-b-lg shadow-inner">
-        {/* Amount + Date */}
-        <div className="grid grid-cols-2 gap-6">
+      <div className="space-y-6 bg-white p-6">
+        <div className="grid gap-6 md:grid-cols-2">
           <AmountInput value={amount} onChange={setAmount} />
           <div>
             <label className="block text-sm font-medium text-gray-700">{t("common.date")}</label>
@@ -193,12 +381,11 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 px-4 text-base"
+              className="mt-1 block w-full rounded-md border border-gray-300 px-4 py-3 text-base shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
             />
           </div>
         </div>
 
-        {/* EXPENSE */}
         {activeTab === "expense" && (
           <>
             <CustomSelect
@@ -207,9 +394,10 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
               onChange={setFromAccountId}
               options={accountsWithOptions}
               required
+              onAddNew={handleAddAccount}
+              addNewLabel={t("transactionForm.addAccount")}
             />
 
-            {/* Use the cashback-specific input when supported */}
             {showCashback && selectedAccount && (
               <CashbackInput
                 transactionAmount={amount}
@@ -230,7 +418,6 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
           </>
         )}
 
-        {/* INCOME */}
         {activeTab === "income" && (
           <>
             <CustomSelect
@@ -239,6 +426,8 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
               onChange={setToAccountId}
               options={accountsWithOptions}
               required
+              onAddNew={handleAddAccount}
+              addNewLabel={t("transactionForm.addAccount")}
             />
             <CustomSelect
               label={t("transactionForm.labels.incomeCategory")}
@@ -252,7 +441,6 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
           </>
         )}
 
-        {/* TRANSFER */}
         {activeTab === "transfer" && (
           <>
             <CustomSelect
@@ -264,14 +452,15 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
               onAddNew={handleAddCategory}
               addNewLabel={addCategoryLabel}
             />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid gap-6 md:grid-cols-2">
               <CustomSelect
                 label={t("transactionForm.labels.fromAccount")}
                 value={fromAccountId}
                 onChange={setFromAccountId}
                 options={accountsWithOptions}
                 required
-                defaultTab="Account"
+                onAddNew={handleAddAccount}
+                addNewLabel={t("transactionForm.addAccount")}
               />
               <CustomSelect
                 label={t("transactionForm.labels.toAccount")}
@@ -279,12 +468,14 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
                 onChange={setToAccountId}
                 options={accountsWithOptions}
                 required
+                onAddNew={handleAddAccount}
+                addNewLabel={t("transactionForm.addAccount")}
               />
             </div>
+            <p className="text-xs text-indigo-600">{t("transactionForm.hints.transferSameAccount")}</p>
           </>
         )}
 
-        {/* DEBT */}
         {activeTab === "debt" && (
           <>
             <CustomSelect
@@ -300,27 +491,27 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
               onChange={setFromAccountId}
               options={accountsWithOptions}
               required
+              onAddNew={handleAddAccount}
+              addNewLabel={t("transactionForm.addAccount")}
             />
           </>
         )}
 
-        {/* Notes */}
         <div>
           <label className="block text-sm font-medium text-gray-700">{t("common.notes")}</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            className="mt-1 block w-full rounded-md border border-gray-300 px-4 py-3 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
           />
         </div>
 
-        {/* Submit */}
-        <div>
+        <div className="flex justify-end">
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex w-full justify-center rounded-md border border-transparent bg-indigo-600 py-3 px-4 font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 text-base"
+            className="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-6 py-3 text-base font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? t("transactionForm.actions.submitting") : t("transactionForm.actions.submit")}
           </button>

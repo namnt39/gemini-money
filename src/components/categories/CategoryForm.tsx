@@ -75,7 +75,15 @@ export default function CategoryForm({ returnTo, defaultNature }: CategoryFormPr
     }
 
     alert(result.message);
-    router.push(returnTo);
+    try {
+      const targetUrl = new URL(returnTo, window.location.origin);
+      if (result.categoryId) {
+        targetUrl.searchParams.set("createdCategoryId", result.categoryId);
+      }
+      router.push(`${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
+    } catch {
+      router.push(returnTo);
+    }
     router.refresh();
   };
 

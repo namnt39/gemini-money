@@ -27,6 +27,7 @@ export default function CustomSelect({ label, value, onChange, options, required
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
   const appliedDefaultRef = useRef(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const hasAddNew = typeof onAddNew === 'function';
 
@@ -71,14 +72,21 @@ export default function CustomSelect({ label, value, onChange, options, required
   };
 
   return (
-    <div>
+    <div className="space-y-1">
       <Listbox value={value} onChange={handleSelect}>
         <Listbox.Label className="block text-sm font-medium text-gray-700">
           {label}
           {required && <span className="ml-1 text-red-500">{t("common.requiredIndicator")}</span>}
         </Listbox.Label>
-        <div className="mt-1 relative">
-          <Listbox.Button className="relative w-full bg-white border border-gray-300 rounded-md shadow-sm pl-3 pr-10 py-3 text-left cursor-default focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+        <div className="relative mt-1">
+          <Listbox.Button
+            className="relative w-full cursor-default rounded-md border border-gray-300 bg-white py-3 pl-3 pr-10 text-left text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            onClick={() => {
+              setTimeout(() => {
+                searchInputRef.current?.focus();
+              }, 0);
+            }}
+          >
             <span className="flex items-center">
               {selectedOption?.imageUrl && (
                 <RemoteImage
@@ -94,50 +102,92 @@ export default function CustomSelect({ label, value, onChange, options, required
             <span className="ml-3 absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none"><SelectorIcon /></span>
           </Listbox.Button>
 
-          <Transition as={Fragment} leave="transition ease-in duration-100" leaveFrom="opacity-100" leaveTo="opacity-0">
-            <Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
-              <div className="p-2">
-                <div className="relative"><span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><SearchIcon /></span><input type="text" placeholder={t("common.searchPlaceholder")} className="w-full bg-gray-50 rounded-md border-gray-300 pl-10 pr-4 py-2 focus:ring-indigo-500 focus:border-indigo-500" onChange={(e) => setQuery(e.target.value)} /></div>
+          <Transition
+            as={Fragment}
+            leave="transition ease-in duration-100"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+            afterLeave={() => setQuery('')}
+          >
+            <Listbox.Options as="div" className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-gray-200 bg-white text-sm shadow-lg">
+              <div className="sticky top-0 z-10 space-y-2 border-b border-gray-200 bg-white p-2">
+                <div className="relative">
+                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <SearchIcon />
+                  </span>
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder={t("common.searchPlaceholder")}
+                    className="w-full rounded-md border border-gray-300 bg-gray-50 py-2 pl-10 pr-4 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                </div>
+
+                {accountTypes.length > 2 && (
+                  <div className="flex flex-wrap gap-1">
+                    {accountTypes.map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveTab(type);
+                        }}
+                        className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                          activeTab === type
+                            ? 'bg-indigo-600 text-white shadow'
+                            : 'border border-gray-300 bg-white text-gray-600 hover:border-indigo-200 hover:text-indigo-600'
+                        }`}
+                      >
+                        {type === 'All' ? t("transactions.tabs.all") : type}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {accountTypes.length > 2 && ( // Chỉ hiện tab nếu có nhiều hơn 1 loại tài khoản
-                <div className="flex border-b border-gray-200 px-2">
-                  {accountTypes.map(type => (
-                    <button key={type} type="button" onClick={(e) => { e.stopPropagation(); setActiveTab(type); }} className={`px-3 py-1.5 text-sm font-medium border-b-2 ${activeTab === type ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>{type === 'All' ? t("transactions.tabs.all") : type}</button>
-                  ))}
-                </div>
-              )}
-
-              <div className="max-h-40 overflow-y-auto">
-                {filteredOptions.map(option => (
-                  <Listbox.Option key={option.id} className={({ active }) => `cursor-pointer select-none relative py-2 pl-3 pr-9 ${active ? 'text-white bg-indigo-600' : 'text-gray-900'}`} value={option.id}>
-                    <div className="flex items-center">
+              <div className="max-h-56 overflow-y-auto">
+                {filteredOptions.map((option) => (
+                  <Listbox.Option
+                    key={option.id}
+                    value={option.id}
+                    className={({ active }) =>
+                      `cursor-pointer select-none px-3 py-2 ${
+                        active ? 'bg-indigo-600 text-white' : 'text-gray-900'
+                      }`
+                    }
+                  >
+                    <div className="flex items-center gap-3">
                       {option.imageUrl && (
                         <RemoteImage
                           src={option.imageUrl}
                           alt={option.name}
                           width={24}
                           height={24}
-                          className="flex-shrink-0 h-6 w-6"
+                          className="h-6 w-6 flex-shrink-0"
                         />
                       )}
-                      <span className="font-normal ml-3 block truncate">{option.name}</span>
+                      <span className="block truncate font-normal">{option.name}</span>
                     </div>
                   </Listbox.Option>
                 ))}
               </div>
 
               {hasAddNew && (
-                <Listbox.Option
-                  value={ADD_NEW_VALUE}
-                  className={({ active }) =>
-                    `cursor-pointer select-none relative py-2 pl-3 pr-9 border-t border-gray-200 mt-1 ${
-                      active ? 'text-indigo-700 bg-indigo-50' : 'text-indigo-600'
-                    }`
-                  }
-                >
-                  + {addNewLabel ?? `${t("common.addNew")}...`}
-                </Listbox.Option>
+                <div className="sticky bottom-0 border-t border-gray-200 bg-white">
+                  <Listbox.Option
+                    value={ADD_NEW_VALUE}
+                    className={({ active }) =>
+                      `cursor-pointer select-none px-3 py-2 ${
+                        active ? 'bg-indigo-50 text-indigo-700' : 'text-indigo-600'
+                      }`
+                    }
+                  >
+                    + {addNewLabel ?? `${t("common.addNew")}...`}
+                  </Listbox.Option>
+                </div>
               )}
             </Listbox.Options>
           </Transition>

@@ -91,9 +91,46 @@ async function getFormData() {
   };
 }
 
-export default async function AddTransactionPage() {
+const DEFAULT_RETURN_PATH = "/transactions";
+
+const normalizeReturnPath = (value: string | string[] | undefined) => {
+  if (!value) return DEFAULT_RETURN_PATH;
+  const candidate = Array.isArray(value) ? value[0] : value;
+  if (!candidate) return DEFAULT_RETURN_PATH;
+  try {
+    const decoded = decodeURIComponent(candidate);
+    return decoded.startsWith("/") ? decoded : DEFAULT_RETURN_PATH;
+  } catch {
+    return DEFAULT_RETURN_PATH;
+  }
+};
+
+const resolveSearchParams = async (
+  input?:
+    | Record<string, string | string[] | undefined>
+    | Promise<Record<string, string | string[] | undefined>>
+) => {
+  if (!input) return {} as Record<string, string | string[] | undefined>;
+  return input instanceof Promise ? await input : input;
+};
+
+type AddTransactionPageProps = {
+  searchParams?:
+    | Record<string, string | string[] | undefined>
+    | Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AddTransactionPage({ searchParams }: AddTransactionPageProps) {
   const t = createTranslator();
+  const params = await resolveSearchParams(searchParams);
   const { accounts, subcategories, people } = await getFormData();
+  const createdCategoryId = typeof params.createdCategoryId === "string" ? params.createdCategoryId : undefined;
+  const tabParam = typeof params.tab === "string" ? params.tab.toLowerCase() : undefined;
+  const initialTab =
+    tabParam === "expense" || tabParam === "income" || tabParam === "transfer" || tabParam === "debt"
+      ? (tabParam as "expense" | "income" | "transfer" | "debt")
+      : undefined;
+  const returnTo = normalizeReturnPath(params.returnTo);
 
   return (
     <div>
@@ -103,6 +140,9 @@ export default async function AddTransactionPage() {
           accounts={accounts}
           subcategories={subcategories}
           people={people}
+          returnTo={returnTo}
+          createdCategoryId={createdCategoryId}
+          initialTab={initialTab}
         />
       </div>
     </div>
