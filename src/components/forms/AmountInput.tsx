@@ -1,0 +1,163 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import Tooltip from "../ui/Tooltip";           // ✅ Tooltip
+import MiniCalculator from "./MiniCalculator"; // ✅ MiniCalculator
+
+// --- Helper functions (giữ & gọn) ---
+const formatNumber = (value: string) => {
+  if (!value) return "";
+  const raw = value.replace(/\D/g, ""); // chỉ giữ số
+  if (raw === "") return "";
+  const num = parseInt(raw, 10);        // bỏ số 0 ở đầu
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+};
+
+const toVietnameseWords = (numStr: string) => {
+  const num = parseInt(numStr.replace(/,/g, ""), 10);
+  if (isNaN(num) || num === 0) return "";
+  if (num >= 1_000_000_000)
+    return `${Math.floor(num / 1_000_000_000)} tỷ ${Math.floor(
+      (num % 1_000_000_000) / 1_000_000
+    )} triệu...`;
+  if (num >= 1_000_000)
+    return `${Math.floor(num / 1_000_000)} triệu ${Math.floor(
+      (num % 1_000_000) / 1_000
+    )} ngàn...`;
+  if (num >= 1_000)
+    return `${Math.floor(num / 1_000)} ngàn ${
+      num % 1_000 > 0 ? `${num % 1_000} đồng...` : ""
+    }`;
+  return `${num} đồng`;
+};
+
+// --- Props ---
+type AmountInputProps = {
+  value: string;
+  onChange: (value: string) => void;
+};
+
+export default function AmountInput({ value, onChange }: AmountInputProps) {
+  const [showCalc, setShowCalc] = useState(false);
+
+  // Gợi ý nhanh theo chữ số đầu (giữ nguyên ý tưởng cũ)
+  const suggestions = useMemo(() => {
+    const firstDigit = value.charAt(0);
+    if (!firstDigit || !/[1-9]/.test(firstDigit)) return [];
+    const num = parseInt(firstDigit, 10);
+    return [num * 1000, num * 10000, num * 100000];
+  }, [value]);
+
+  // Handlers tách gọn
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange(formatNumber(e.target.value));
+  };
+
+  const handleSuggestionClick = (amount: number) => {
+    onChange(formatNumber(amount.toString()));
+  };
+
+  const handleClear = () => onChange("");
+
+  return (
+    <div>
+      <label
+        htmlFor="amount"
+        className="block text-sm font-medium text-gray-700"
+      >
+        Số tiền
+      </label>
+
+      <div className="mt-1 relative rounded-md shadow-sm">
+        <input
+          type="text"
+          id="amount"
+          inputMode="numeric"
+          value={value}
+          onChange={handleInputChange}
+          className="block w-full rounded-md border-gray-300 py-3 px-4 focus:border-indigo-500 focus:ring-indigo-500 text-lg"
+          placeholder="0"
+          required
+        />
+
+        {/* Action buttons (Calculator + Clear) */}
+        <div className="absolute inset-y-0 right-0 pr-3 flex items-center space-x-2">
+          <Tooltip text="Mở máy tính mini">
+            <button
+              type="button"
+              aria-label="Mở máy tính mini"
+              onClick={() => setShowCalc((s) => !s)}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6 text-gray-400 hover:text-gray-600 cursor-pointer"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                />
+              </svg>
+            </button>
+          </Tooltip>
+
+          {!!value && (
+            <Tooltip text="Xóa">
+              <button
+                type="button"
+                aria-label="Xóa số tiền"
+                onClick={handleClear}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+            </Tooltip>
+          )}
+        </div>
+
+        {/* MiniCalculator (đặt trong container relative để dễ định vị nếu cần) */}
+        {showCalc && (
+          <MiniCalculator
+            initialValue={value}
+            onApply={onChange}            // Trả giá trị về input
+            onClose={() => setShowCalc(false)}
+          />
+        )}
+      </div>
+
+      {/* Gợi ý & chữ đọc số (giữ nguyên) */}
+      <div className="mt-2 flex justify-between items-center h-8">
+        <div className="flex space-x-2">
+          {suggestions.map((sugg) => (
+            <button
+              type="button"
+              key={sugg}
+              onClick={() => handleSuggestionClick(sugg)}
+              className="px-2 py-1 text-xs text-indigo-700 bg-indigo-100 rounded-full hover:bg-indigo-200"
+            >
+              {formatNumber(sugg.toString())}
+            </button>
+          ))}
+        </div>
+        <div className="text-sm text-gray-500 italic">
+          {toVietnameseWords(value)}
+        </div>
+      </div>
+    </div>
+  );
+}
