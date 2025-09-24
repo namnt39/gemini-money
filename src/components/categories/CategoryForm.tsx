@@ -4,13 +4,15 @@ import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createCategory, TransactionNature } from "@/app/categories/actions";
+import { createTranslator, TranslationKey } from "@/lib/i18n";
 
-const natureOptions: { value: TransactionNature; label: string }[] = [
-  { value: "EX", label: "Chi tiêu" },
-  { value: "IN", label: "Thu nhập" },
-  { value: "TR", label: "Chuyển khoản" },
-  { value: "DE", label: "Công nợ" },
-];
+const natureValues: TransactionNature[] = ["EX", "IN", "TR", "DE"];
+const natureTranslationKeys: Record<TransactionNature, TranslationKey> = {
+  EX: "categories.nature.EX",
+  IN: "categories.nature.IN",
+  TR: "categories.nature.TR",
+  DE: "categories.nature.DE",
+};
 
 type CategoryFormProps = {
   returnTo: string;
@@ -19,12 +21,21 @@ type CategoryFormProps = {
 
 const getInitialNature = (defaultNature?: string): TransactionNature => {
   const normalized = (defaultNature || "").toUpperCase();
-  return natureOptions.find((option) => option.value === normalized)?.value ?? "EX";
+  return natureValues.find((value) => value === normalized) ?? "EX";
 };
 
 export default function CategoryForm({ returnTo, defaultNature }: CategoryFormProps) {
   const router = useRouter();
+  const t = createTranslator();
   const initialNature = useMemo(() => getInitialNature(defaultNature), [defaultNature]);
+  const natureOptions = useMemo(
+    () =>
+      natureValues.map((value) => ({
+        value,
+        label: t(natureTranslationKeys[value]),
+      })),
+    [t]
+  );
   const [name, setName] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [transactionNature, setTransactionNature] = useState<TransactionNature>(initialNature);
@@ -37,7 +48,7 @@ export default function CategoryForm({ returnTo, defaultNature }: CategoryFormPr
 
   const handleBack = () => {
     if (isDirty) {
-      const shouldLeave = confirm("Bạn có chắc muốn quay lại? Thông tin chưa được lưu sẽ bị mất.");
+      const shouldLeave = confirm(t("categoryForm.confirmLeave"));
       if (!shouldLeave) {
         return;
       }
@@ -72,7 +83,7 @@ export default function CategoryForm({ returnTo, defaultNature }: CategoryFormPr
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700" htmlFor="category-name">
-          Tên danh mục
+          {t("categoryForm.nameLabel")}
         </label>
         <input
           id="category-name"
@@ -80,14 +91,14 @@ export default function CategoryForm({ returnTo, defaultNature }: CategoryFormPr
           value={name}
           onChange={(event) => setName(event.target.value)}
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 px-4 text-base"
-          placeholder="Ví dụ: Ăn uống"
+          placeholder={t("categoryForm.namePlaceholder")}
           required
         />
       </div>
 
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700" htmlFor="category-nature">
-          Loại giao dịch
+          {t("categoryForm.typeLabel")}
         </label>
         <select
           id="category-nature"
@@ -105,7 +116,7 @@ export default function CategoryForm({ returnTo, defaultNature }: CategoryFormPr
 
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700" htmlFor="category-image">
-          Hình ảnh (URL)
+          {t("categoryForm.imageLabel")}
         </label>
         <input
           id="category-image"
@@ -115,7 +126,7 @@ export default function CategoryForm({ returnTo, defaultNature }: CategoryFormPr
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 px-4 text-base"
           placeholder="https://example.com/image.png"
         />
-        <p className="text-xs text-gray-500">Nhập đường dẫn ảnh biểu tượng cho danh mục (nếu có).</p>
+        <p className="text-xs text-gray-500">{t("categoryForm.imageHelp")}</p>
       </div>
 
       {errorMessage && (
@@ -128,14 +139,14 @@ export default function CategoryForm({ returnTo, defaultNature }: CategoryFormPr
           onClick={handleBack}
           className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100"
         >
-          Quay lại
+          {t("categoryForm.back")}
         </button>
         <button
           type="submit"
           disabled={isSubmitting}
           className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-base font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60"
         >
-          {isSubmitting ? "Đang lưu..." : "Lưu danh mục"}
+          {isSubmitting ? t("categoryForm.saving") : t("categoryForm.save")}
         </button>
       </div>
     </form>

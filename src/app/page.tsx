@@ -1,11 +1,10 @@
 import { supabase } from "@/lib/supabaseClient";
 import AccountsTable from "@/components/AccountsTable";
 import StatCard from "@/components/StatCard";
-// SỬA Ở ĐÂY: Không cần import icon ở trang này nữa
+import { createTranslator } from "@/lib/i18n";
 
-// Hàm định dạng tiền tệ
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "VND" }).format(amount);
 };
 export type Account = {
   id: string;
@@ -28,6 +27,7 @@ type TransactionRecord = {
 };
 
 export default async function Home() {
+  const t = createTranslator();
   const { data: accountsData } = await supabase.from("accounts").select();
   const { data: transactionsData } = await supabase
     .from("transactions")
@@ -66,20 +66,15 @@ export default async function Home() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">
-        Dashboard
-      </h1>
-      
+      <h1 className="text-3xl font-bold text-gray-800 mb-6">{t("dashboard.title")}</h1>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        {/* SỬA Ở ĐÂY: Truyền 'type' thay vì 'icon' */}
-        <StatCard title="Thu nhập Tháng này" value={formatCurrency(totalIncomeThisMonth)} type="income" />
-        <StatCard title="Chi tiêu Tháng này" value={formatCurrency(totalExpenseThisMonth)} type="expense" />
-        <StatCard title="Số dư Hiện tại" value={formatCurrency(netWorth)} type="balance" />
+        <StatCard title={t("dashboard.incomeThisMonth")} value={formatCurrency(totalIncomeThisMonth)} type="income" />
+        <StatCard title={t("dashboard.expenseThisMonth")} value={formatCurrency(totalExpenseThisMonth)} type="expense" />
+        <StatCard title={t("dashboard.currentBalance")} value={formatCurrency(netWorth)} type="balance" />
       </div>
 
-      <h2 className="text-2xl font-bold text-gray-800 mb-4">
-        Tài khoản
-      </h2>
+      <h2 className="text-2xl font-bold text-gray-800 mb-4">{t("dashboard.accountsHeading")}</h2>
       <AccountsTable accounts={accountsData || []} />
     </div>
   );

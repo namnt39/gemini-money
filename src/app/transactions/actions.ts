@@ -19,19 +19,19 @@ type TransactionData = {
   subcategoryId: string;
   personId: string;
   date: string;
-  cashback: CashbackData | null; // ✅ thêm info cashback
+  cashback: CashbackData | null; // include cashback information
 };
 
 export async function createTransaction(data: TransactionData) {
-  // --- validation cơ bản giữ nguyên & bổ sung ---
+  // Basic validation rules
   if (!data.amount || data.amount <= 0) {
-    return { success: false, message: "Số tiền không hợp lệ." };
+    return { success: false, message: "Invalid amount." };
   }
   if (!data.date) {
-    return { success: false, message: "Ngày giao dịch không hợp lệ." };
+    return { success: false, message: "Invalid transaction date." };
   }
 
-  // Validate cashback (nếu có)
+  // Validate cashback input if provided
   let cashbackPercent: number | null = null;
   let cashbackAmount: number | null = null;
 
@@ -43,13 +43,13 @@ export async function createTransaction(data: TransactionData) {
     const amt = Number(amount);
 
     if (isNaN(pct) || pct < 0 || pct > 100) {
-      return { success: false, message: "Cashback % không hợp lệ (0–100)." };
+      return { success: false, message: "Cashback percentage must be between 0 and 100." };
     }
     if (isNaN(amt) || amt < 0) {
-      return { success: false, message: "Số tiền cashback không hợp lệ (>= 0)." };
+      return { success: false, message: "Cashback amount must be greater than or equal to 0." };
     }
     if (amt > data.amount) {
-      return { success: false, message: "Cashback không thể lớn hơn số tiền giao dịch." };
+      return { success: false, message: "Cashback cannot exceed the transaction amount." };
     }
 
     const basePercent = clampNumber(pct, 0, 100);
@@ -117,62 +117,62 @@ export async function createTransaction(data: TransactionData) {
     cashbackAmount = normalizedAmount;
   }
 
-  // Tính final price: amount - cashback_amount (không âm)
+  // Calculate final price: amount minus cashback (never negative)
   const finalPrice = Math.max(0, data.amount - (cashbackAmount ?? 0));
 
-  // --- build payload insert ---
+  // Prepare payload for insertion
   const transactionToInsert: Record<string, unknown> = {
     date: data.date,
     amount: data.amount,
     notes: data.notes,
     status: "Active",
-    // ✅ trường cashback
+    // Cashback fields
     cashback_percent: cashbackPercent,
     cashback_amount: cashbackAmount,
-    // ✅ final_price sau khi trừ cashback
+    // Final amount after cashback
     final_price: finalPrice,
   };
 
-  // --- logic theo tab (giữ nguyên ý tưởng cũ) ---
+  // Tab-specific handling
   if (data.activeTab === "expense") {
     if (!data.fromAccountId || !data.subcategoryId) {
-      return { success: false, message: "Vui lòng chọn tài khoản và danh mục." };
+      return { success: false, message: "Please choose an account and category." };
     }
     transactionToInsert.from_account_id = data.fromAccountId;
     transactionToInsert.subcategory_id = data.subcategoryId;
   } else if (data.activeTab === "income") {
     if (!data.toAccountId || !data.subcategoryId) {
-      return { success: false, message: "Vui lòng chọn tài khoản và danh mục." };
+      return { success: false, message: "Please choose an account and category." };
     }
     transactionToInsert.to_account_id = data.toAccountId;
     transactionToInsert.subcategory_id = data.subcategoryId;
   } else if (data.activeTab === "debt") {
     if (!data.fromAccountId || !data.personId) {
-      return { success: false, message: "Vui lòng chọn người và tài khoản." };
+      return { success: false, message: "Please choose a person and account." };
     }
     transactionToInsert.from_account_id = data.fromAccountId;
     transactionToInsert.person_id = data.personId;
   } else {
-    // transfer: vẫn chưa hỗ trợ, giữ nguyên hành vi
-    return { success: false, message: "Chức năng Chuyển khoản chưa được hỗ trợ." };
+    // Transfers are not supported yet; keep the current behaviour
+    return { success: false, message: "Transfers are not supported yet." };
   }
 
-  // --- insert ---
+  // Insert transaction
   const { error } = await supabase.from("transactions").insert(transactionToInsert);
   if (error) {
-    return { success: false, message: `Lỗi từ database: ${error.message}` };
+    return { success: false, message: `Database error: ${error.message}` };
   }
 
-  // --- revalidate ---
+  // Revalidate affected pages
   revalidatePath("/");
   revalidatePath("/transactions");
 
-  return { success: true, message: "Thêm giao dịch thành công!" };
+  return { success: true, message: "Transaction added successfully!" };
 }
 
 export async function deleteTransaction(transactionId: string) {
   if (!transactionId) {
-    return { success: false, message: "Thiếu mã giao dịch để xóa." };
+    return { success: false, message: "Missing transaction identifier." };
   }
 
   const { error } = await supabase
@@ -181,12 +181,12 @@ export async function deleteTransaction(transactionId: string) {
     .eq("id", transactionId);
 
   if (error) {
-    console.error("Không thể xóa giao dịch:", error);
-    return { success: false, message: "Xóa giao dịch thất bại." };
+    console.error("Unable to delete transaction:", error);
+    return { success: false, message: "Failed to delete transaction." };
   }
 
   revalidatePath("/");
   revalidatePath("/transactions");
 
-  return { success: true, message: "Đã xóa giao dịch." };
+  return { success: true, message: "Transaction deleted." };
 }

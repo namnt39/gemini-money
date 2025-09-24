@@ -28,7 +28,7 @@ const normalizeImageUrl = (value?: string | null) => {
 export async function createCategory(input: CreateCategoryInput): Promise<ActionResult> {
   const name = input.name.trim();
   if (!name) {
-    return { success: false, message: "Vui lòng nhập tên danh mục." };
+    return { success: false, message: "Please provide a category name." };
   }
 
   const transactionNature = VALID_NATURES.includes(input.transactionNature)
@@ -48,8 +48,8 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
     .single();
 
   if (error) {
-    console.error("Không thể tạo danh mục:", error);
-    return { success: false, message: "Không thể tạo danh mục mới." };
+    console.error("Unable to create category:", error);
+    return { success: false, message: "Unable to create a new category." };
   }
 
   revalidatePath("/categories");
@@ -59,7 +59,7 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
 
   return {
     success: true,
-    message: "Tạo danh mục thành công!",
+    message: "Category created successfully!",
     categoryId: data?.id,
   };
 }

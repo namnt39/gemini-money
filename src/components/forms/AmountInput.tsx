@@ -1,34 +1,34 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import Tooltip from "../ui/Tooltip";           // ✅ Tooltip
-import MiniCalculator from "./MiniCalculator"; // ✅ MiniCalculator
+import Tooltip from "../ui/Tooltip";
+import MiniCalculator from "./MiniCalculator";
+import { createTranslator } from "@/lib/i18n";
 
-// --- Helper functions (giữ & gọn) ---
 const formatNumber = (value: string) => {
   if (!value) return "";
-  const raw = value.replace(/\D/g, ""); // chỉ giữ số
+  const raw = value.replace(/\D/g, "");
   if (raw === "") return "";
-  const num = parseInt(raw, 10);        // bỏ số 0 ở đầu
+  const num = parseInt(raw, 10);
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
 
-const toVietnameseWords = (numStr: string) => {
+const toReadableWords = (numStr: string) => {
   const num = parseInt(numStr.replace(/,/g, ""), 10);
   if (isNaN(num) || num === 0) return "";
   if (num >= 1_000_000_000)
-    return `${Math.floor(num / 1_000_000_000)} tỷ ${Math.floor(
+    return `${Math.floor(num / 1_000_000_000)} billion ${Math.floor(
       (num % 1_000_000_000) / 1_000_000
-    )} triệu...`;
+    )} million...`;
   if (num >= 1_000_000)
-    return `${Math.floor(num / 1_000_000)} triệu ${Math.floor(
+    return `${Math.floor(num / 1_000_000)} million ${Math.floor(
       (num % 1_000_000) / 1_000
-    )} ngàn...`;
+    )} thousand...`;
   if (num >= 1_000)
-    return `${Math.floor(num / 1_000)} ngàn ${
-      num % 1_000 > 0 ? `${num % 1_000} đồng...` : ""
+    return `${Math.floor(num / 1_000)} thousand ${
+      num % 1_000 > 0 ? `${num % 1_000} VND...` : ""
     }`;
-  return `${num} đồng`;
+  return `${num} VND`;
 };
 
 // --- Props ---
@@ -38,9 +38,9 @@ type AmountInputProps = {
 };
 
 export default function AmountInput({ value, onChange }: AmountInputProps) {
+  const t = createTranslator();
   const [showCalc, setShowCalc] = useState(false);
 
-  // Gợi ý nhanh theo chữ số đầu (giữ nguyên ý tưởng cũ)
   const suggestions = useMemo(() => {
     const firstDigit = value.charAt(0);
     if (!firstDigit || !/[1-9]/.test(firstDigit)) return [];
@@ -65,7 +65,7 @@ export default function AmountInput({ value, onChange }: AmountInputProps) {
         htmlFor="amount"
         className="block text-sm font-medium text-gray-700"
       >
-        Số tiền
+        {t("common.amount")}
       </label>
 
       <div className="mt-1 relative rounded-md shadow-sm">
@@ -82,10 +82,10 @@ export default function AmountInput({ value, onChange }: AmountInputProps) {
 
         {/* Action buttons (Calculator + Clear) */}
         <div className="absolute inset-y-0 right-0 pr-3 flex items-center space-x-2">
-          <Tooltip text="Mở máy tính mini">
+          <Tooltip text={t("amountInput.openCalculator")}>
             <button
               type="button"
-              aria-label="Mở máy tính mini"
+              aria-label={t("amountInput.openCalculatorAria")}
               onClick={() => setShowCalc((s) => !s)}
             >
               <svg
@@ -106,10 +106,10 @@ export default function AmountInput({ value, onChange }: AmountInputProps) {
           </Tooltip>
 
           {!!value && (
-            <Tooltip text="Xóa">
+            <Tooltip text={t("amountInput.clear")}>
               <button
                 type="button"
-                aria-label="Xóa số tiền"
+                aria-label={t("amountInput.clearAria")}
                 onClick={handleClear}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -130,17 +130,15 @@ export default function AmountInput({ value, onChange }: AmountInputProps) {
           )}
         </div>
 
-        {/* MiniCalculator (đặt trong container relative để dễ định vị nếu cần) */}
         {showCalc && (
           <MiniCalculator
             initialValue={value}
-            onApply={onChange}            // Trả giá trị về input
+            onApply={onChange}
             onClose={() => setShowCalc(false)}
           />
         )}
       </div>
 
-      {/* Gợi ý & chữ đọc số (giữ nguyên) */}
       <div className="mt-2 flex justify-between items-center h-8">
         <div className="flex space-x-2">
           {suggestions.map((sugg) => (
@@ -155,7 +153,7 @@ export default function AmountInput({ value, onChange }: AmountInputProps) {
           ))}
         </div>
         <div className="text-sm text-gray-500 italic">
-          {toVietnameseWords(value)}
+          {toReadableWords(value)}
         </div>
       </div>
     </div>

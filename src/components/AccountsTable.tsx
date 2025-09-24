@@ -1,3 +1,5 @@
+import { createTranslator } from "@/lib/i18n";
+
 type Account = {
   id: string;
   name: string;
@@ -11,6 +13,8 @@ type AccountsTableProps = {
 };
 
 export default function AccountsTable({ accounts }: AccountsTableProps) {
+  const t = createTranslator();
+
   return (
     <div className="w-full mt-8">
       <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -18,13 +22,13 @@ export default function AccountsTable({ accounts }: AccountsTableProps) {
           <thead className="bg-gray-50">
             <tr>
               <th className="whitespace-nowrap px-4 py-2 text-left font-medium text-gray-900">
-                Tên Tài khoản
+                {t("accounts.name")}
               </th>
               <th className="whitespace-nowrap px-4 py-2 text-left font-medium text-gray-900">
-                Loại
+                {t("accounts.type")}
               </th>
               <th className="whitespace-nowrap px-4 py-2 text-left font-medium text-gray-900">
-                Hạn mức tín dụng
+                {t("accounts.creditLimit")}
               </th>
             </tr>
           </thead>
@@ -35,15 +39,15 @@ export default function AccountsTable({ accounts }: AccountsTableProps) {
                   {account.name}
                 </td>
                 <td className="whitespace-nowrap px-4 py-2 text-gray-700">
-                  {account.type || "N/A"}
+                  {account.type || t("accounts.notAvailable")}
                 </td>
                 <td className="whitespace-nowrap px-4 py-2 text-gray-700">
                   {account.credit_limit
-                    ? new Intl.NumberFormat("vi-VN", {
+                    ? new Intl.NumberFormat("en-US", {
                         style: "currency",
                         currency: "VND",
                       }).format(account.credit_limit)
-                    : "N/A"}
+                    : t("accounts.notAvailable")}
                 </td>
               </tr>
             ))}

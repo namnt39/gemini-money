@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Account } from "@/app/transactions/add/page";
+import { createTranslator } from "@/lib/i18n";
 
 type LastEdited = "percent" | "amount" | null;
 
@@ -29,7 +30,7 @@ const parsePercent = (value: string) => {
 
 const formatCurrency = (value: number) => {
   if (!value) return "0";
-  return value.toLocaleString("vi-VN");
+  return `${value.toLocaleString("en-US")} VND`;
 };
 
 const formatPercent = (value: number) => {
@@ -39,6 +40,7 @@ const formatPercent = (value: number) => {
 };
 
 export default function CashbackInput({ transactionAmount, account, onCashbackChange }: CashbackInputProps) {
+  const t = createTranslator();
   const [percentInput, setPercentInput] = useState<string>("");
   const [amountInput, setAmountInput] = useState<string>("");
   const [lastEdited, setLastEdited] = useState<LastEdited>(null);
@@ -246,34 +248,34 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
 
   const hintMessage = useMemo(() => {
     if (!account.is_cashback_eligible) {
-      return `Thẻ ${account.name} không hỗ trợ cashback.`;
+      return `Card ${account.name} does not support cashback.`;
     }
 
     if (transactionValue <= 0) {
-      return "Nhập số tiền giao dịch để hệ thống tính giới hạn cashback.";
+      return "Enter the transaction amount to calculate cashback limits.";
     }
 
     const limitParts: string[] = [];
     if (accountPercentLimit != null) {
-      limitParts.push(`Tỷ lệ tối đa ${formatPercent(accountPercentLimit)}%`);
+      limitParts.push(`Maximum rate ${formatPercent(accountPercentLimit)}%`);
     }
     if (account.max_cashback_amount != null) {
-      limitParts.push(`Hoàn tiền tối đa ${formatCurrency(Math.floor(account.max_cashback_amount))}đ`);
+      limitParts.push(`Maximum cashback ${formatCurrency(Math.floor(account.max_cashback_amount))}`);
     }
 
     const limitPrefix =
       limitParts.length > 0
-        ? `Giới hạn thẻ: ${limitParts.join(" • ")}.`
-        : "Thẻ này chưa có thông tin giới hạn cashback cụ thể.";
+        ? `Card limits: ${limitParts.join(" • ")}.`
+        : "This card does not have specific cashback limit information.";
 
     if (amountLimit <= 0) {
-      return `${limitPrefix} Giao dịch ${formatCurrency(transactionValue)}đ hiện không đủ điều kiện nhận cashback.`;
+      return `${limitPrefix} A ${formatCurrency(transactionValue)} transaction is currently not eligible for cashback.`;
     }
 
     const effectivePercent = transactionValue > 0 ? (amountLimit / transactionValue) * 100 : 0;
-    const detail = `Với giao dịch ${formatCurrency(transactionValue)}đ bạn chỉ có thể nhận tối đa ${formatCurrency(
+    const detail = `For a ${formatCurrency(transactionValue)} transaction you can earn up to ${formatCurrency(
       amountLimit
-    )}đ (~${formatPercent(effectivePercent)}%).`;
+    )} (~${formatPercent(effectivePercent)}%).`;
 
     return `${limitPrefix} ${detail}`;
   }, [
@@ -288,17 +290,17 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
   return (
     <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-blue-800">Thông tin Cashback</p>
+        <p className="text-sm font-medium text-blue-800">{t("transactionForm.labels.cashbackInfo")}</p>
         {canEdit && amountLimit > 0 && (
           <span className="text-xs font-medium text-blue-700">
-            Tối đa {formatCurrency(amountLimit)}đ (~{formatPercent((amountLimit / transactionValue) * 100)}%)
+            Up to {formatCurrency(amountLimit)} (~{formatPercent((amountLimit / transactionValue) * 100)}%)
           </span>
         )}
       </div>
 
       {!canEdit && (
         <div className="text-xs text-blue-700 bg-blue-100 p-2 rounded-md">
-          Nhập số tiền giao dịch trước khi thêm thông tin cashback.
+          Enter the transaction amount before adding cashback details.
         </div>
       )}
 
@@ -326,21 +328,21 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
             <>
               <p className="mt-1 text-xs text-gray-500">
                 {percentInput
-                  ? `Tương đương khoảng ${formatCurrency(amountSuggestion)}đ hoàn tiền.`
+                  ? `Equivalent to about ${formatCurrency(amountSuggestion)} in cashback.`
                   : amountLimit > 0
-                  ? `Gợi ý: tối đa ${formatPercent(effectivePercentLimit)}% để nhận ${formatCurrency(amountLimit)}đ.`
-                  : "Giao dịch này hiện chưa có tỷ lệ hoàn tiền khả dụng."}
+                  ? `Suggestion: up to ${formatPercent(effectivePercentLimit)}% to earn ${formatCurrency(amountLimit)}.`
+                  : "No cashback rate is available for this transaction."}
               </p>
               {percentExceeded && (
                 <p className="mt-1 text-xs text-red-600">
-                  Không thể vượt quá {formatPercent(effectivePercentLimit)}% vì giới hạn của thẻ hoặc số tiền giao dịch.
+                  Cannot exceed {formatPercent(effectivePercentLimit)}% due to card or transaction limits.
                 </p>
               )}
             </>
           )}
         </div>
         <div>
-          <label className="block text-xs text-gray-600 mb-1">Cashback (đồng)</label>
+          <label className="block text-xs text-gray-600 mb-1">Cashback (VND)</label>
           <input
             type="text"
             inputMode="numeric"
@@ -354,14 +356,14 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
             <>
               <p className="mt-1 text-xs text-gray-500">
                 {amountInput
-                  ? `Tương đương khoảng ${formatPercent(percentSuggestion)}%.`
+                  ? `Equivalent to roughly ${formatPercent(percentSuggestion)}%.`
                   : amountLimit > 0
-                  ? `Gợi ý: số tiền hoàn tối đa là ${formatCurrency(amountLimit)}đ.`
-                  : "Chưa có khoản hoàn tiền khả dụng cho giao dịch này."}
+                  ? `Suggestion: the maximum cashback amount is ${formatCurrency(amountLimit)}.`
+                  : "No cashback amount is available for this transaction."}
               </p>
               {amountExceeded && (
                 <p className="mt-1 text-xs text-red-600">
-                  Không thể vượt quá {formatCurrency(amountLimit)}đ vì giới hạn của thẻ hoặc giao dịch.
+                  Cannot exceed {formatCurrency(amountLimit)} because of card or transaction limits.
                 </p>
               )}
             </>
