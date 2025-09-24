@@ -1,7 +1,22 @@
+import Link from "next/link";
+
 import { supabase } from "@/lib/supabaseClient";
 import DeleteButton from "@/app/transactions/DeleteButton";
 
-async function getTransactions() {
+type TransactionRow = {
+  id: string;
+  date: string;
+  amount: number;
+  notes: string | null;
+  from_account?: { name: string | null } | null;
+  to_account?: { name: string | null } | null;
+  subcategories?: {
+    name: string | null;
+    categories?: { name: string | null } | null;
+  } | null;
+};
+
+async function getTransactions(): Promise<TransactionRow[]> {
   const { data, error } = await supabase
     .from("transactions")
     .select(`
@@ -19,7 +34,7 @@ async function getTransactions() {
     console.error("Error fetching transactions:", error);
     return [];
   }
-  return data;
+  return (data as TransactionRow[]) || [];
 }
 
 export default async function TransactionsPage() {
@@ -29,14 +44,14 @@ export default async function TransactionsPage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-800">Lịch sử Giao dịch</h1>
-        <a 
+        <Link
           href="/transactions/add"
           className="bg-indigo-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-indigo-700"
         >
           + Thêm mới
-        </a>
+        </Link>
       </div>
-      
+
       <div className="bg-white rounded-lg shadow-md">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y-2 divide-gray-200 text-sm">
@@ -51,7 +66,7 @@ export default async function TransactionsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {transactions.map((tx: any) => (
+              {transactions.map((tx: TransactionRow) => (
                 <tr key={tx.id}>
                   <td className="whitespace-nowrap px-4 py-2 text-gray-700">{new Date(tx.date).toLocaleDateString('vi-VN')}</td>
                   <td className="whitespace-nowrap px-4 py-2 text-gray-700">{tx.subcategories?.categories?.name} / {tx.subcategories?.name}</td>

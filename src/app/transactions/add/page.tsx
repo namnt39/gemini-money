@@ -20,6 +20,7 @@ export type Subcategory = {
   id: string;
   name: string;
   image_url: string | null;
+  transaction_nature?: string | null;
   categories: CategoryInfo[] | CategoryInfo | null;
 };
 export type Person = {
@@ -32,7 +33,9 @@ export type Person = {
 async function getFormData() {
   // Lấy thêm các trường cashback từ bảng accounts
   const accountsPromise = supabase.from("accounts").select("id, name, image_url, type, is_cashback_eligible, cashback_percentage, max_cashback_amount");
-  const subcategoriesPromise = supabase.from("subcategories").select("id, name, image_url, categories(name, transaction_nature)");
+  const subcategoriesPromise = supabase
+    .from("subcategories")
+    .select("id, name, image_url, transaction_nature, categories(name, transaction_nature)");
   const peoplePromise = supabase.from("people").select("id, name, image_url, is_group");
 
   const [

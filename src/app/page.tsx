@@ -7,14 +7,24 @@ import StatCard from "@/components/StatCard";
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 };
-export type Account = { 
-  id: string; 
-  name: string; 
-  image_url: string | null; 
+export type Account = {
+  id: string;
+  name: string;
+  image_url: string | null;
   type: string | null;
   is_cashback_eligible: boolean | null;
   cashback_percentage: number | null;
   max_cashback_amount: number | null;
+};
+
+type TransactionRecord = {
+  amount: number;
+  date: string;
+  subcategories?: {
+    categories?: {
+      transaction_nature?: string | null;
+    } | null;
+  } | null;
 };
 
 export default async function Home() {
@@ -34,7 +44,7 @@ export default async function Home() {
   const now = new Date();
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const transactions: any[] = transactionsData || [];
+  const transactions = (transactionsData as TransactionRecord[]) || [];
 
   const monthlyTransactions = transactions.filter(tx => new Date(tx.date) >= currentMonthStart);
   
