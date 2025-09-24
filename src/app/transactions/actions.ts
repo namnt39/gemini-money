@@ -3,6 +3,8 @@
 import { supabase } from "@/lib/supabaseClient";
 import { revalidatePath } from "next/cache";
 
+const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
 type CashbackData = {
   percent: number; // 0-100
   amount: number;  // >= 0
@@ -50,8 +52,69 @@ export async function createTransaction(data: TransactionData) {
       return { success: false, message: "Cashback không thể lớn hơn số tiền giao dịch." };
     }
 
-    cashbackPercent = pct;
-    cashbackAmount = amt;
+    const basePercent = clampNumber(pct, 0, 100);
+    const baseAmount = Math.max(0, Math.min(amt, data.amount));
+
+    let normalizedPercent = basePercent;
+    let normalizedAmount = baseAmount;
+    let allowedAmountForRounding = data.amount;
+
+    if (data.activeTab === "expense" && data.fromAccountId) {
+      const { data: accountInfo } = await supabase
+        .from("accounts")
+        .select("cashback_percentage, max_cashback_amount")
+        .eq("id", data.fromAccountId)
+        .maybeSingle();
+
+      if (accountInfo) {
+        const percentLimitFromAccount =
+          accountInfo.cashback_percentage != null ? Math.max(0, accountInfo.cashback_percentage * 100) : null;
+
+        const amountLimitFromPercent =
+          percentLimitFromAccount != null ? (percentLimitFromAccount / 100) * data.amount : data.amount;
+        const amountLimitFromMax =
+          accountInfo.max_cashback_amount != null ? accountInfo.max_cashback_amount : data.amount;
+
+        const allowedAmount = Math.max(
+          0,
+          Math.min(
+            Number.isFinite(amountLimitFromPercent) ? amountLimitFromPercent : data.amount,
+            Number.isFinite(amountLimitFromMax) ? amountLimitFromMax : data.amount,
+            data.amount
+          )
+        );
+
+        allowedAmountForRounding = allowedAmount;
+
+        const inputAmountFromPercent = (basePercent / 100) * data.amount;
+        const candidateAmount = Math.min(baseAmount, inputAmountFromPercent, data.amount);
+        const constrainedAmount = Math.max(0, Math.min(candidateAmount, allowedAmount));
+
+        const rawPercentFromAmount = data.amount > 0 ? (constrainedAmount / data.amount) * 100 : 0;
+        const percentLimitFromAmount = data.amount > 0 ? (allowedAmount / data.amount) * 100 : 0;
+        const effectivePercentLimit =
+          percentLimitFromAccount != null
+            ? Math.min(percentLimitFromAccount, percentLimitFromAmount, 100)
+            : Math.min(percentLimitFromAmount, 100);
+
+        normalizedPercent = clampNumber(rawPercentFromAmount, 0, effectivePercentLimit);
+        const amountFromPercentLimit = (normalizedPercent / 100) * data.amount;
+        normalizedAmount = Math.max(0, Math.min(constrainedAmount, amountFromPercentLimit, allowedAmount));
+      } else {
+        normalizedPercent = basePercent;
+        normalizedAmount = baseAmount;
+      }
+    }
+
+    normalizedAmount = Math.max(
+      0,
+      Math.min(Math.round(normalizedAmount), data.amount, Math.round(allowedAmountForRounding))
+    );
+    normalizedPercent =
+      data.amount > 0 ? Math.max(0, Number(((normalizedAmount / data.amount) * 100).toFixed(2))) : 0;
+
+    cashbackPercent = normalizedPercent;
+    cashbackAmount = normalizedAmount;
   }
 
   // Tính final price: amount - cashback_amount (không âm)

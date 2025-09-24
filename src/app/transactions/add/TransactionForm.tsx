@@ -93,6 +93,13 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
     e.preventDefault();
     setIsSubmitting(true);
 
+    const sanitizedCashback = showCashback
+      ? {
+          percent: Number.isFinite(cashbackInfo.percent) ? Number(cashbackInfo.percent) : 0,
+          amount: Number.isFinite(cashbackInfo.amount) ? Number(cashbackInfo.amount) : 0,
+        }
+      : null;
+
     const result = await createTransaction({
       activeTab,
       amount: parseFloat(amount.replace(/,/g, "")),
@@ -102,7 +109,7 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
       subcategoryId,
       personId,
       date,
-      cashback: showCashback ? cashbackInfo : null, // ✅ GỬI CASHBACK
+      cashback: sanitizedCashback, // ✅ GỬI CASHBACK
     });
 
     setIsSubmitting(false);
