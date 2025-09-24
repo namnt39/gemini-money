@@ -1,9 +1,9 @@
 "use client";
 
 import { Listbox, Transition } from '@headlessui/react';
-import Image from 'next/image';
 import { Fragment, useState, useMemo, useEffect, useRef } from 'react';
 import { createTranslator } from '@/lib/i18n';
+import RemoteImage from '@/components/RemoteImage';
 
 export type Option = { id: string; name: string; imageUrl?: string; type?: string; };
 type CustomSelectProps = {
@@ -80,7 +80,15 @@ export default function CustomSelect({ label, value, onChange, options, required
         <div className="mt-1 relative">
           <Listbox.Button className="relative w-full bg-white border border-gray-300 rounded-md shadow-sm pl-3 pr-10 py-3 text-left cursor-default focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
             <span className="flex items-center">
-              {selectedOption?.imageUrl && <Image src={selectedOption.imageUrl} alt={selectedOption.name} width={24} height={24} className="flex-shrink-0 h-6 w-6" />}
+              {selectedOption?.imageUrl && (
+                <RemoteImage
+                  src={selectedOption.imageUrl}
+                  alt={selectedOption.name}
+                  width={24}
+                  height={24}
+                  className="flex-shrink-0 h-6 w-6"
+                />
+              )}
               <span className={`ml-3 block truncate ${!selectedOption ? 'text-gray-500' : ''}`}>{selectedOption ? selectedOption.name : `Select ${label.toLowerCase()}`}</span>
             </span>
             <span className="ml-3 absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none"><SelectorIcon /></span>
@@ -104,7 +112,15 @@ export default function CustomSelect({ label, value, onChange, options, required
                 {filteredOptions.map(option => (
                   <Listbox.Option key={option.id} className={({ active }) => `cursor-pointer select-none relative py-2 pl-3 pr-9 ${active ? 'text-white bg-indigo-600' : 'text-gray-900'}`} value={option.id}>
                     <div className="flex items-center">
-                      {option.imageUrl && <Image src={option.imageUrl} alt={option.name} width={24} height={24} className="flex-shrink-0 h-6 w-6" />}
+                      {option.imageUrl && (
+                        <RemoteImage
+                          src={option.imageUrl}
+                          alt={option.name}
+                          width={24}
+                          height={24}
+                          className="flex-shrink-0 h-6 w-6"
+                        />
+                      )}
                       <span className="font-normal ml-3 block truncate">{option.name}</span>
                     </div>
                   </Listbox.Option>

@@ -42,7 +42,7 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
   };
 
   const { data, error } = await supabase
-    .from("subcategories")
+    .from("categories")
     .insert(payload)
     .select("id")
     .single();

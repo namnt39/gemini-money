@@ -41,7 +41,7 @@ async function getFormData() {
   const accountsPromise = supabase.from("accounts").select("id, name, image_url, type, is_cashback_eligible, cashback_percentage, max_cashback_amount");
   const subcategoriesPromise = supabase
     .from("subcategories")
-    .select("id, name, image_url, transaction_nature, categories(name, transaction_nature)");
+    .select("id, name, image_url, categories(name, transaction_nature)");
   const peoplePromise = supabase.from("people").select("id, name, image_url, is_group");
   const categoriesPromise = supabase.from("categories").select("id, name, transaction_nature, image_url");
 
