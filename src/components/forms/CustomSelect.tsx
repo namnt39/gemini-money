@@ -3,23 +3,48 @@
 import { Listbox, Transition } from '@headlessui/react';
 // SỬA Ở ĐÂY: Import lại component Image
 import Image from 'next/image';
-import { Fragment, useState, useMemo } from 'react';
+import { Fragment, useState, useMemo, useEffect, useRef } from 'react';
 
 export type Option = { id: string; name: string; imageUrl?: string; type?: string; };
-type CustomSelectProps = { label: string; value: string; onChange: (value: string) => void; options: Option[]; required?: boolean; };
+type CustomSelectProps = {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: Option[];
+  required?: boolean;
+  defaultTab?: string;
+};
 
 const SelectorIcon = () => <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L10 5.414 7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zm-3.707 9.293a1 1 0 011.414 0L10 14.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>;
 const SearchIcon = () => <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" /></svg>;
 
-export default function CustomSelect({ label, value, onChange, options, required = false }: CustomSelectProps) {
+export default function CustomSelect({ label, value, onChange, options, required = false, defaultTab }: CustomSelectProps) {
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
+  const appliedDefaultRef = useRef(false);
 
   const accountTypes = useMemo(() => {
     const types = new Set<string>();
     options.forEach(opt => { if (opt.type) { types.add(opt.type); } });
     return ['All', ...Array.from(types)];
   }, [options]);
+
+  useEffect(() => {
+    appliedDefaultRef.current = false;
+  }, [defaultTab]);
+
+  useEffect(() => {
+    if (!defaultTab || appliedDefaultRef.current) return;
+    if (accountTypes.includes(defaultTab)) {
+      setActiveTab(defaultTab);
+      appliedDefaultRef.current = true;
+    }
+  }, [defaultTab, accountTypes]);
+
+  useEffect(() => {
+    if (accountTypes.includes(activeTab)) return;
+    setActiveTab('All');
+  }, [accountTypes, activeTab]);
 
   const filteredOptions = useMemo(() => {
     let filtered = options;
@@ -33,7 +58,10 @@ export default function CustomSelect({ label, value, onChange, options, required
   return (
     <div>
       <Listbox value={value} onChange={onChange}>
-        <Listbox.Label className="block text-sm font-medium text-gray-700">{label}</Listbox.Label>
+        <Listbox.Label className="block text-sm font-medium text-gray-700">
+          {label}
+          {required && <span className="ml-1 text-red-500">*</span>}
+        </Listbox.Label>
         <div className="mt-1 relative">
           <Listbox.Button className="relative w-full bg-white border border-gray-300 rounded-md shadow-sm pl-3 pr-10 py-3 text-left cursor-default focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
             <span className="flex items-center">
