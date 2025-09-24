@@ -121,7 +121,7 @@ export async function createTransaction(data: TransactionData) {
   const finalPrice = Math.max(0, data.amount - (cashbackAmount ?? 0));
 
   // --- build payload insert ---
-  const transactionToInsert: any = {
+  const transactionToInsert: Record<string, unknown> = {
     date: data.date,
     amount: data.amount,
     notes: data.notes,
@@ -168,4 +168,25 @@ export async function createTransaction(data: TransactionData) {
   revalidatePath("/transactions");
 
   return { success: true, message: "Thêm giao dịch thành công!" };
+}
+
+export async function deleteTransaction(transactionId: string) {
+  if (!transactionId) {
+    return { success: false, message: "Thiếu mã giao dịch để xóa." };
+  }
+
+  const { error } = await supabase
+    .from("transactions")
+    .delete()
+    .eq("id", transactionId);
+
+  if (error) {
+    console.error("Không thể xóa giao dịch:", error);
+    return { success: false, message: "Xóa giao dịch thất bại." };
+  }
+
+  revalidatePath("/");
+  revalidatePath("/transactions");
+
+  return { success: true, message: "Đã xóa giao dịch." };
 }

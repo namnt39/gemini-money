@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Sidebar() {
   return (
     <aside className="w-64 flex-shrink-0 bg-gray-800 p-4 text-white">
@@ -5,14 +7,19 @@ export default function Sidebar() {
       <nav>
         <ul>
           <li className="mb-4">
-            <a href="/" className="block p-2 rounded hover:bg-gray-700">
+            <Link href="/" className="block p-2 rounded hover:bg-gray-700">
               Dashboard
-            </a>
+            </Link>
           </li>
           <li className="mb-4">
-            <a href="/transactions" className="block p-2 rounded hover:bg-gray-700"> {/* SỬA Ở ĐÂY */}
+            <Link href="/transactions" className="block p-2 rounded hover:bg-gray-700">
               Giao dịch
-            </a>
+            </Link>
+          </li>
+          <li className="mb-4">
+            <Link href="/categories" className="block p-2 rounded hover:bg-gray-700">
+              Danh mục
+            </Link>
           </li>
           <li className="mb-4">
             <a href="#" className="block p-2 rounded hover:bg-gray-700">

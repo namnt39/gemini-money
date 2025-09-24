@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Account, Subcategory, Person } from "./page";
 import { createTransaction } from "../actions";
 import AmountInput from "@/components/forms/AmountInput";
@@ -41,6 +42,7 @@ const TabButton = ({
 );
 
 export default function TransactionForm({ accounts, subcategories, people }: TransactionFormProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("expense");
   const [amount, setAmount] = useState("");
   const [fromAccountId, setFromAccountId] = useState("");
@@ -70,6 +72,9 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
   }, [fromAccountId, accounts]);
 
   const getTransactionNature = (sub: Subcategory): string | null => {
+    if (sub.transaction_nature) {
+      return sub.transaction_nature;
+    }
     if (!sub.categories) return null;
     if (Array.isArray(sub.categories)) {
       return sub.categories[0]?.transaction_nature ?? null;
@@ -97,6 +102,33 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
   const transferCategories = subcategories.filter((s) => getTransactionNature(s) === "TR").map(mapToOptions);
   const accountsWithOptions = accounts.map(mapToOptions);
   const peopleWithOptions = people.map(mapToOptions);
+
+  const addCategoryLabel = useMemo(() => {
+    switch (activeTab) {
+      case "income":
+        return "Thêm danh mục Thu nhập";
+      case "transfer":
+        return "Thêm danh mục Chuyển khoản";
+      case "debt":
+        return "Thêm danh mục Công nợ";
+      default:
+        return "Thêm danh mục Chi tiêu";
+    }
+  }, [activeTab]);
+
+  const handleAddCategory = () => {
+    const natureMap: Record<Tab, string> = {
+      expense: "EX",
+      income: "IN",
+      transfer: "TR",
+      debt: "DE",
+    };
+    const params = new URLSearchParams({
+      returnTo: "/transactions/add",
+      defaultNature: natureMap[activeTab],
+    });
+    router.push(`/categories/add?${params.toString()}`);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,6 +218,8 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
               onChange={setSubcategoryId}
               options={expenseCategories}
               required
+              onAddNew={handleAddCategory}
+              addNewLabel={addCategoryLabel}
             />
           </>
         )}
@@ -206,6 +240,8 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
               onChange={setSubcategoryId}
               options={incomeCategories}
               required
+              onAddNew={handleAddCategory}
+              addNewLabel={addCategoryLabel}
             />
           </>
         )}
@@ -219,6 +255,8 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
               onChange={setSubcategoryId}
               options={transferCategories}
               required
+              onAddNew={handleAddCategory}
+              addNewLabel={addCategoryLabel}
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <CustomSelect
