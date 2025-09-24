@@ -1,20 +1,22 @@
 "use client";
 
-// SỬA Ở ĐÂY: Dùng đường dẫn tuyệt đối
 import { deleteTransaction } from "@/app/transactions/actions";
+import { createTranslator } from "@/lib/i18n";
 
 type DeleteButtonProps = {
   transactionId: string;
 };
 
 export default function DeleteButton({ transactionId }: DeleteButtonProps) {
+  const t = createTranslator();
+
   const handleDelete = async () => {
-    if (confirm("Bạn có chắc chắn muốn xóa giao dịch này không?")) {
+    if (confirm(t("delete.confirm"))) {
       const result = await deleteTransaction(transactionId);
       if (result.success) {
-        alert("Xóa thành công!");
+        alert(t("delete.success"));
       } else {
-        alert(`Lỗi: ${result.message}`);
+        alert(`${t("delete.error")}: ${result.message}`);
       }
     }
   };
@@ -24,7 +26,7 @@ export default function DeleteButton({ transactionId }: DeleteButtonProps) {
       onClick={handleDelete}
       className="text-red-600 hover:text-red-800 font-medium"
     >
-      Xóa
+      {t("delete.button")}
     </button>
   );
 }

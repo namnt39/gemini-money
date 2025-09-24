@@ -6,7 +6,8 @@ import { Account, Subcategory, Person } from "./page";
 import { createTransaction } from "../actions";
 import AmountInput from "@/components/forms/AmountInput";
 import CustomSelect from "@/components/forms/CustomSelect";
-import CashbackInput from "@/components/forms/CashbackInput"; // ✅ COMPONENT MỚI
+import CashbackInput from "@/components/forms/CashbackInput";
+import { createTranslator } from "@/lib/i18n";
 
 type Tab = "expense" | "income" | "transfer" | "debt";
 type TransactionFormProps = { accounts: Account[]; subcategories: Subcategory[]; people: Person[] };
@@ -42,6 +43,7 @@ const TabButton = ({
 );
 
 export default function TransactionForm({ accounts, subcategories, people }: TransactionFormProps) {
+  const t = createTranslator();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("expense");
   const [amount, setAmount] = useState("");
@@ -58,7 +60,7 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [cashbackInfo, setCashbackInfo] = useState<CashbackInfo>({ percent: 0, amount: 0 });
 
-  // Khi chọn tài khoản chi tiêu, quyết định có hiện cashback hay không
+  // Determine whether to show cashback input based on the selected expense account
   useEffect(() => {
     const account = accounts.find((a) => a.id === fromAccountId);
     if (account && account.is_cashback_eligible) {
@@ -67,7 +69,7 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
     } else {
       setShowCashback(false);
       setSelectedAccount(null);
-      setCashbackInfo({ percent: 0, amount: 0 }); // reset nếu đổi sang tk không hỗ trợ
+      setCashbackInfo({ percent: 0, amount: 0 }); // reset when switching to an account without cashback support
     }
   }, [fromAccountId, accounts]);
 
@@ -94,7 +96,7 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
     imageUrl: item.image_url || undefined,
     type:
       item.type ||
-      (typeof item.is_group === "boolean" ? (item.is_group ? "Group" : "Cá nhân") : undefined),
+      (typeof item.is_group === "boolean" ? (item.is_group ? "Group" : "Individual") : undefined),
   });
 
   const expenseCategories = subcategories.filter((s) => getTransactionNature(s) === "EX").map(mapToOptions);
@@ -106,15 +108,15 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
   const addCategoryLabel = useMemo(() => {
     switch (activeTab) {
       case "income":
-        return "Thêm danh mục Thu nhập";
+        return t("transactionForm.addCategory.income");
       case "transfer":
-        return "Thêm danh mục Chuyển khoản";
+        return t("transactionForm.addCategory.transfer");
       case "debt":
-        return "Thêm danh mục Công nợ";
+        return t("transactionForm.addCategory.debt");
       default:
-        return "Thêm danh mục Chi tiêu";
+        return t("transactionForm.addCategory.expense");
     }
-  }, [activeTab]);
+  }, [activeTab, t]);
 
   const handleAddCategory = () => {
     const natureMap: Record<Tab, string> = {
@@ -132,6 +134,10 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (activeTab === "transfer" && fromAccountId && fromAccountId === toAccountId) {
+      alert(t("transactionForm.errors.sameTransferAccount"));
+      return;
+    }
     setIsSubmitting(true);
 
     const sanitizedCashback = showCashback
@@ -150,7 +156,7 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
       subcategoryId,
       personId,
       date,
-      cashback: sanitizedCashback, // ✅ GỬI CASHBACK
+      cashback: sanitizedCashback, // include cashback values
     });
 
     setIsSubmitting(false);
@@ -171,10 +177,10 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
     <form onSubmit={handleSubmit}>
       {/* Tabs */}
       <div className="flex">
-        <TabButton title="Chi tiêu" active={activeTab === "expense"} color={tabColors.expense} onClick={() => setActiveTab("expense")} />
-        <TabButton title="Thu nhập" active={activeTab === "income"} color={tabColors.income} onClick={() => setActiveTab("income")} />
-        <TabButton title="Chuyển khoản" active={activeTab === "transfer"} color={tabColors.transfer} onClick={() => setActiveTab("transfer")} />
-        <TabButton title="Công nợ" active={activeTab === "debt"} color={tabColors.debt} onClick={() => setActiveTab("debt")} />
+        <TabButton title={t("transactionForm.tabs.expense")} active={activeTab === "expense"} color={tabColors.expense} onClick={() => setActiveTab("expense")} />
+        <TabButton title={t("transactionForm.tabs.income")} active={activeTab === "income"} color={tabColors.income} onClick={() => setActiveTab("income")} />
+        <TabButton title={t("transactionForm.tabs.transfer")} active={activeTab === "transfer"} color={tabColors.transfer} onClick={() => setActiveTab("transfer")} />
+        <TabButton title={t("transactionForm.tabs.debt")} active={activeTab === "debt"} color={tabColors.debt} onClick={() => setActiveTab("debt")} />
       </div>
 
       <div className="p-6 space-y-6 bg-gray-50 border-x border-b rounded-b-lg shadow-inner">
@@ -182,7 +188,7 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
         <div className="grid grid-cols-2 gap-6">
           <AmountInput value={amount} onChange={setAmount} />
           <div>
-            <label className="block text-sm font-medium text-gray-700">Ngày</label>
+            <label className="block text-sm font-medium text-gray-700">{t("common.date")}</label>
             <input
               type="date"
               value={date}
@@ -196,14 +202,14 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
         {activeTab === "expense" && (
           <>
             <CustomSelect
-              label="Từ Tài khoản"
+              label={t("transactionForm.labels.fromAccount")}
               value={fromAccountId}
               onChange={setFromAccountId}
               options={accountsWithOptions}
               required
             />
 
-            {/* ✅ Dùng CashbackInput thay cho input thường */}
+            {/* Use the cashback-specific input when supported */}
             {showCashback && selectedAccount && (
               <CashbackInput
                 transactionAmount={amount}
@@ -213,7 +219,7 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
             )}
 
             <CustomSelect
-              label="Danh mục Chi tiêu"
+              label={t("transactionForm.labels.expenseCategory")}
               value={subcategoryId}
               onChange={setSubcategoryId}
               options={expenseCategories}
@@ -228,14 +234,14 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
         {activeTab === "income" && (
           <>
             <CustomSelect
-              label="Vào Tài khoản"
+              label={t("transactionForm.labels.toAccount")}
               value={toAccountId}
               onChange={setToAccountId}
               options={accountsWithOptions}
               required
             />
             <CustomSelect
-              label="Danh mục Thu nhập"
+              label={t("transactionForm.labels.incomeCategory")}
               value={subcategoryId}
               onChange={setSubcategoryId}
               options={incomeCategories}
@@ -250,7 +256,7 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
         {activeTab === "transfer" && (
           <>
             <CustomSelect
-              label="Danh mục Chuyển khoản"
+              label={t("transactionForm.labels.transferCategory")}
               value={subcategoryId}
               onChange={setSubcategoryId}
               options={transferCategories}
@@ -260,7 +266,7 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <CustomSelect
-                label="Chuyển từ Tài khoản"
+                label={t("transactionForm.labels.fromAccount")}
                 value={fromAccountId}
                 onChange={setFromAccountId}
                 options={accountsWithOptions}
@@ -268,7 +274,7 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
                 defaultTab="Account"
               />
               <CustomSelect
-                label="Đến Tài khoản"
+                label={t("transactionForm.labels.toAccount")}
                 value={toAccountId}
                 onChange={setToAccountId}
                 options={accountsWithOptions}
@@ -282,14 +288,14 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
         {activeTab === "debt" && (
           <>
             <CustomSelect
-              label="Ai nợ?"
+              label={t("transactionForm.labels.whoOwes")}
               value={personId}
               onChange={setPersonId}
               options={peopleWithOptions}
               required
             />
             <CustomSelect
-              label="Rút tiền từ Tài khoản"
+              label={t("transactionForm.labels.withdrawFromAccount")}
               value={fromAccountId}
               onChange={setFromAccountId}
               options={accountsWithOptions}
@@ -300,7 +306,7 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
 
         {/* Notes */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">Ghi chú</label>
+          <label className="block text-sm font-medium text-gray-700">{t("common.notes")}</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -316,7 +322,7 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
             disabled={isSubmitting}
             className="flex w-full justify-center rounded-md border border-transparent bg-indigo-600 py-3 px-4 font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 text-base"
           >
-            {isSubmitting ? "Đang lưu..." : "Lưu Giao dịch"}
+            {isSubmitting ? t("transactionForm.actions.submitting") : t("transactionForm.actions.submit")}
           </button>
         </div>
       </div>

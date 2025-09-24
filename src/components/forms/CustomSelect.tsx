@@ -1,9 +1,9 @@
 "use client";
 
 import { Listbox, Transition } from '@headlessui/react';
-// SỬA Ở ĐÂY: Import lại component Image
 import Image from 'next/image';
 import { Fragment, useState, useMemo, useEffect, useRef } from 'react';
+import { createTranslator } from '@/lib/i18n';
 
 export type Option = { id: string; name: string; imageUrl?: string; type?: string; };
 type CustomSelectProps = {
@@ -23,6 +23,7 @@ const SearchIcon = () => <svg className="h-5 w-5 text-gray-400" xmlns="http://ww
 const ADD_NEW_VALUE = "__add_new__";
 
 export default function CustomSelect({ label, value, onChange, options, required = false, defaultTab, onAddNew, addNewLabel }: CustomSelectProps) {
+  const t = createTranslator();
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
   const appliedDefaultRef = useRef(false);
@@ -74,14 +75,13 @@ export default function CustomSelect({ label, value, onChange, options, required
       <Listbox value={value} onChange={handleSelect}>
         <Listbox.Label className="block text-sm font-medium text-gray-700">
           {label}
-          {required && <span className="ml-1 text-red-500">*</span>}
+          {required && <span className="ml-1 text-red-500">{t("common.requiredIndicator")}</span>}
         </Listbox.Label>
         <div className="mt-1 relative">
           <Listbox.Button className="relative w-full bg-white border border-gray-300 rounded-md shadow-sm pl-3 pr-10 py-3 text-left cursor-default focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
             <span className="flex items-center">
-              {/* SỬA Ở ĐÂY: Dùng lại <Image> */}
               {selectedOption?.imageUrl && <Image src={selectedOption.imageUrl} alt={selectedOption.name} width={24} height={24} className="flex-shrink-0 h-6 w-6" />}
-              <span className={`ml-3 block truncate ${!selectedOption ? 'text-gray-500' : ''}`}>{selectedOption ? selectedOption.name : `Chọn ${label.toLowerCase()}`}</span>
+              <span className={`ml-3 block truncate ${!selectedOption ? 'text-gray-500' : ''}`}>{selectedOption ? selectedOption.name : `Select ${label.toLowerCase()}`}</span>
             </span>
             <span className="ml-3 absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none"><SelectorIcon /></span>
           </Listbox.Button>
@@ -89,13 +89,13 @@ export default function CustomSelect({ label, value, onChange, options, required
           <Transition as={Fragment} leave="transition ease-in duration-100" leaveFrom="opacity-100" leaveTo="opacity-0">
             <Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
               <div className="p-2">
-                <div className="relative"><span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><SearchIcon /></span><input type="text" placeholder="Tìm kiếm..." className="w-full bg-gray-50 rounded-md border-gray-300 pl-10 pr-4 py-2 focus:ring-indigo-500 focus:border-indigo-500" onChange={(e) => setQuery(e.target.value)} /></div>
+                <div className="relative"><span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><SearchIcon /></span><input type="text" placeholder={t("common.searchPlaceholder")} className="w-full bg-gray-50 rounded-md border-gray-300 pl-10 pr-4 py-2 focus:ring-indigo-500 focus:border-indigo-500" onChange={(e) => setQuery(e.target.value)} /></div>
               </div>
-              
+
               {accountTypes.length > 2 && ( // Chỉ hiện tab nếu có nhiều hơn 1 loại tài khoản
                 <div className="flex border-b border-gray-200 px-2">
                   {accountTypes.map(type => (
-                    <button key={type} type="button" onClick={(e) => { e.stopPropagation(); setActiveTab(type); }} className={`px-3 py-1.5 text-sm font-medium border-b-2 ${activeTab === type ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>{type}</button>
+                    <button key={type} type="button" onClick={(e) => { e.stopPropagation(); setActiveTab(type); }} className={`px-3 py-1.5 text-sm font-medium border-b-2 ${activeTab === type ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>{type === 'All' ? t("transactions.tabs.all") : type}</button>
                   ))}
                 </div>
               )}
@@ -104,14 +104,13 @@ export default function CustomSelect({ label, value, onChange, options, required
                 {filteredOptions.map(option => (
                   <Listbox.Option key={option.id} className={({ active }) => `cursor-pointer select-none relative py-2 pl-3 pr-9 ${active ? 'text-white bg-indigo-600' : 'text-gray-900'}`} value={option.id}>
                     <div className="flex items-center">
-                       {/* SỬA Ở ĐÂY: Dùng lại <Image> */}
                       {option.imageUrl && <Image src={option.imageUrl} alt={option.name} width={24} height={24} className="flex-shrink-0 h-6 w-6" />}
                       <span className="font-normal ml-3 block truncate">{option.name}</span>
                     </div>
                   </Listbox.Option>
                 ))}
               </div>
-              
+
               {hasAddNew && (
                 <Listbox.Option
                   value={ADD_NEW_VALUE}
@@ -121,7 +120,7 @@ export default function CustomSelect({ label, value, onChange, options, required
                     }`
                   }
                 >
-                  + {addNewLabel ?? 'Thêm mới...'}
+                  + {addNewLabel ?? `${t("common.addNew")}...`}
                 </Listbox.Option>
               )}
             </Listbox.Options>

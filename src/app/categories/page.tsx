@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { supabase } from "@/lib/supabaseClient";
+import { createTranslator } from "@/lib/i18n";
 
 type CategoryRecord = {
   id: string;
@@ -11,16 +12,15 @@ type CategoryRecord = {
   categories?: { transaction_nature?: string | null } | null;
 };
 
-const natureLabels: Record<string, string> = {
-  EX: "Chi tiêu",
-  IN: "Thu nhập",
-  TR: "Chuyển khoản",
-  DE: "Công nợ",
-};
-
-const getNatureLabel = (value?: string | null) => {
-  if (!value) return "Không xác định";
-  return natureLabels[value] ?? value;
+const getNatureLabel = (value: string | undefined | null, t: ReturnType<typeof createTranslator>) => {
+  if (!value) return t("categories.nature.unknown");
+  const natureMap: Record<string, string> = {
+    EX: t("categories.nature.EX"),
+    IN: t("categories.nature.IN"),
+    TR: t("categories.nature.TR"),
+    DE: t("categories.nature.DE"),
+  };
+  return natureMap[value] ?? value;
 };
 
 async function getCategories() {
@@ -30,25 +30,50 @@ async function getCategories() {
     .order("name", { ascending: true });
 
   if (error) {
-    console.error("Không thể lấy danh mục:", error);
-    return [] as CategoryRecord[];
+    console.error("Unable to fetch subcategories:", error);
   }
 
-  return (data as CategoryRecord[]) || [];
+  const { data: categories, error: categoriesError } = await supabase
+    .from("categories")
+    .select("id, name, image_url, transaction_nature")
+    .order("name", { ascending: true });
+
+  if (categoriesError) {
+    console.error("Unable to fetch categories:", categoriesError);
+  }
+
+  const typedSubcategories = (data as CategoryRecord[]) || [];
+  const typedCategories = (categories as (CategoryRecord & { image_url?: string | null })[] | null) || [];
+
+  const fallbackEntries = typedCategories.map((item) => ({
+    ...item,
+    categories: null,
+  }));
+
+  const combined = [...typedSubcategories];
+  const existingIds = new Set(combined.map((item) => item.id));
+  for (const fallback of fallbackEntries) {
+    if (!existingIds.has(fallback.id)) {
+      combined.push(fallback);
+    }
+  }
+
+  return combined;
 }
 
 export default async function CategoriesPage() {
+  const t = createTranslator();
   const categories = await getCategories();
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Danh mục</h1>
+        <h1 className="text-3xl font-bold text-gray-800">{t("categories.title")}</h1>
         <Link
           href="/categories/add"
           className="bg-indigo-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-indigo-700"
         >
-          + Thêm mới
+          {t("categories.addButton")}
         </Link>
       </div>
 
@@ -57,9 +82,9 @@ export default async function CategoriesPage() {
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">Biểu tượng</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">Tên danh mục</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">Loại giao dịch</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">{t("categories.tableHeaders.icon")}</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">{t("categories.tableHeaders.name")}</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">{t("categories.tableHeaders.type")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -83,14 +108,14 @@ export default async function CategoriesPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-800 font-medium">{category.name}</td>
-                    <td className="px-4 py-3 text-gray-600">{getNatureLabel(nature)}</td>
+                    <td className="px-4 py-3 text-gray-600">{getNatureLabel(nature, t)}</td>
                   </tr>
                 );
               })}
               {categories.length === 0 && (
                 <tr>
                   <td className="px-4 py-6 text-center text-gray-500" colSpan={3}>
-                    Chưa có danh mục nào.
+                    {t("categories.emptyState")}
                   </td>
                 </tr>
               )}
