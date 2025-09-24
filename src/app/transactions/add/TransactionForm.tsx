@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Account, Subcategory, Person } from "./page";
 import { createTransaction } from "../actions";
 import AmountInput from "@/components/forms/AmountInput";
@@ -71,21 +71,30 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
 
   const getTransactionNature = (sub: Subcategory): string | null => {
     if (!sub.categories) return null;
-    if (Array.isArray(sub.categories) && sub.categories.length > 0) return sub.categories[0].transaction_nature;
-    if (typeof sub.categories === "object" && !Array.isArray(sub.categories))
-      return (sub.categories as any).transaction_nature;
-    return null;
+    if (Array.isArray(sub.categories)) {
+      return sub.categories[0]?.transaction_nature ?? null;
+    }
+    return sub.categories.transaction_nature ?? null;
   };
 
-  const mapToOptions = (item: { id: string; name: string; image_url?: string | null; type?: string | null }) => ({
+  const mapToOptions = (item: {
+    id: string;
+    name: string;
+    image_url?: string | null;
+    type?: string | null;
+    is_group?: boolean | null;
+  }) => ({
     id: item.id,
     name: item.name,
     imageUrl: item.image_url || undefined,
-    type: item.type || undefined,
+    type:
+      item.type ||
+      (typeof item.is_group === "boolean" ? (item.is_group ? "Group" : "Cá nhân") : undefined),
   });
 
   const expenseCategories = subcategories.filter((s) => getTransactionNature(s) === "EX").map(mapToOptions);
   const incomeCategories = subcategories.filter((s) => getTransactionNature(s) === "IN").map(mapToOptions);
+  const transferCategories = subcategories.filter((s) => getTransactionNature(s) === "TR").map(mapToOptions);
   const accountsWithOptions = accounts.map(mapToOptions);
   const peopleWithOptions = people.map(mapToOptions);
 
@@ -198,6 +207,36 @@ export default function TransactionForm({ accounts, subcategories, people }: Tra
               options={incomeCategories}
               required
             />
+          </>
+        )}
+
+        {/* TRANSFER */}
+        {activeTab === "transfer" && (
+          <>
+            <CustomSelect
+              label="Danh mục Chuyển khoản"
+              value={subcategoryId}
+              onChange={setSubcategoryId}
+              options={transferCategories}
+              required
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <CustomSelect
+                label="Chuyển từ Tài khoản"
+                value={fromAccountId}
+                onChange={setFromAccountId}
+                options={accountsWithOptions}
+                required
+                defaultTab="Account"
+              />
+              <CustomSelect
+                label="Đến Tài khoản"
+                value={toAccountId}
+                onChange={setToAccountId}
+                options={accountsWithOptions}
+                required
+              />
+            </div>
           </>
         )}
 
