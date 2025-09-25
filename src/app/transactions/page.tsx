@@ -1,28 +1,21 @@
 import Link from "next/link";
 
-import {
-  isSupabaseConfigured,
-  supabase,
-  supabaseConfigurationError,
-} from "@/lib/supabaseClient";
+import { supabase, supabaseConfigurationError } from "@/lib/supabaseClient";
 import { createTranslator } from "@/lib/i18n";
 import Tooltip from "@/components/Tooltip";
+import { getMockAccounts, getMockTransactions } from "@/data/mockData";
 
 import TransactionsView from "./TransactionsView";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS, natureCodeMap } from "./constants";
 
-type NatureFilter = "all" | "income" | "expense" | "transfer";
-type MonthFilter = number | "all";
-type QuarterFilter = number | "all";
-
-type TransactionFilters = {
-  nature: NatureFilter;
-  year: number;
-  month: MonthFilter;
-  quarter: QuarterFilter;
-  accountId: string;
-  page: number;
-  pageSize: number;
-};
+import type {
+  AccountRecord,
+  MonthFilter,
+  NatureFilter,
+  QuarterFilter,
+  TransactionFilters,
+  TransactionListItem,
+} from "./types";
 
 type TransactionQueryRow = {
   id: string;
@@ -46,37 +39,6 @@ type TransactionQueryRow = {
       | { name: string | null; transaction_nature?: string | null }
       | null;
   } | null;
-};
-
-type TransactionListItem = {
-  id: string;
-  date: string;
-  amount: number;
-  finalPrice: number | null;
-  cashbackPercent: number | null;
-  cashbackAmount: number | null;
-  notes: string | null;
-  fromAccount?: { id: string | null; name: string | null; image_url: string | null } | null;
-  toAccount?: { id: string | null; name: string | null; image_url: string | null } | null;
-  person?: { id: string | null; name: string | null; image_url: string | null } | null;
-  categoryName?: string | null;
-  subcategoryName?: string | null;
-  transactionNature?: string | null;
-};
-
-type AccountRecord = {
-  id: string;
-  name: string;
-  image_url: string | null;
-  type: string | null;
-};
-
-const DEFAULT_PAGE_SIZE = 10;
-const PAGE_SIZE_OPTIONS = [5, 10, 25, 50];
-const natureCodeMap: Record<Exclude<NatureFilter, "all">, string> = {
-  income: "IN",
-  expense: "EX",
-  transfer: "TR",
 };
 
 const now = new Date();
@@ -168,10 +130,11 @@ async function fetchTransactions(
   filters: TransactionFilters
 ): Promise<{ rows: TransactionListItem[]; count: number; errorMessage?: string }> {
   if (!supabase) {
-    const message =
-      supabaseConfigurationError?.message ?? "Supabase client is not configured.";
-    console.error("Failed to fetch transactions:", message);
-    return { rows: [], count: 0, errorMessage: message };
+    const fallback = getMockTransactions(filters);
+    const detail = supabaseConfigurationError?.message;
+    const message = detail ? `${fallback.message} (${detail})` : fallback.message;
+    console.warn(message);
+    return { rows: fallback.rows, count: fallback.count, errorMessage: message };
   }
 
   const { start, end } = getDateRange(filters);
@@ -230,9 +193,9 @@ async function fetchTransactions(
   const { data, count, error } = await query.returns<TransactionQueryRow[]>();
 
   if (error) {
-    const message = error.message || "Unable to fetch transactions.";
-    console.error("Failed to fetch transactions:", error);
-    return { rows: [], count: 0, errorMessage: message };
+    console.warn("Failed to fetch transactions from Supabase. Using demo data.", error?.message);
+    const fallback = getMockTransactions(filters);
+    return { rows: fallback.rows, count: fallback.count, errorMessage: fallback.message };
   }
 
   const rows: TransactionQueryRow[] = data ?? [];
@@ -264,10 +227,11 @@ async function fetchTransactions(
 
 async function fetchAccounts(): Promise<{ accounts: AccountRecord[]; errorMessage?: string }> {
   if (!supabase) {
-    const message =
-      supabaseConfigurationError?.message ?? "Supabase client is not configured.";
-    console.error("Failed to fetch accounts:", message);
-    return { accounts: [], errorMessage: message };
+    const fallback = getMockAccounts();
+    const detail = supabaseConfigurationError?.message;
+    const message = detail ? `${fallback.message} (${detail})` : fallback.message;
+    console.warn(message);
+    return { accounts: fallback.accounts, errorMessage: message };
   }
 
   const { data, error } = await supabase
@@ -276,9 +240,9 @@ async function fetchAccounts(): Promise<{ accounts: AccountRecord[]; errorMessag
     .order("name", { ascending: true });
 
   if (error) {
-    const message = error.message || "Unable to fetch accounts.";
-    console.error("Failed to fetch accounts:", error);
-    return { accounts: [], errorMessage: message };
+    console.warn("Failed to fetch accounts from Supabase. Using demo data.", error?.message);
+    const fallback = getMockAccounts();
+    return { accounts: fallback.accounts, errorMessage: fallback.message };
   }
 
   return { accounts: ((data as AccountRecord[]) ?? []) as AccountRecord[] };
@@ -309,9 +273,7 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
     fetchAccounts(),
   ]);
 
-  const combinedError =
-    transactionsResult.errorMessage || accountsResult.errorMessage ||
-    (!isSupabaseConfigured ? supabaseConfigurationError?.message : undefined);
+  const combinedError = transactionsResult.errorMessage || accountsResult.errorMessage;
 
   return (
     <div>
@@ -338,4 +300,4 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
   );
 }
 
-export type { TransactionListItem, TransactionFilters, AccountRecord };
+export type { TransactionListItem, TransactionFilters, AccountRecord } from "./types";

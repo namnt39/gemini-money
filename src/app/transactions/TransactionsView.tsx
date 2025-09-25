@@ -9,8 +9,9 @@ import Tooltip from "@/components/Tooltip";
 import { createTranslator } from "@/lib/i18n";
 import { numberToVietnameseWords } from "@/lib/numberToVietnameseWords";
 import { deleteTransaction, deleteTransactions } from "./actions";
+import { PAGE_SIZE_OPTIONS } from "./constants";
 
-import type { AccountRecord, TransactionFilters, TransactionListItem } from "./page";
+import type { AccountRecord, TransactionFilters, TransactionListItem } from "./types";
 
 type TransactionsViewProps = {
   transactions: TransactionListItem[];
@@ -31,8 +32,6 @@ const natureTabs: NatureTab[] = [
   { value: "expense", labelKey: "transactions.tabs.expense" },
   { value: "transfer", labelKey: "transactions.tabs.transfer" },
 ];
-
-const PAGE_SIZE_OPTIONS = [5, 10, 25, 50];
 
 const numberFormatter = new Intl.NumberFormat("vi-VN");
 const monthFormatter = new Intl.DateTimeFormat("en-US", { month: "long" });
@@ -735,11 +734,20 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
               <button
                 type="button"
                 onClick={() => setFiltersExpanded((prev) => !prev)}
+                aria-expanded={filtersExpanded}
                 className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 transition hover:text-indigo-800"
               >
-                {filtersExpanded
-                  ? t("transactions.filters.collapse")
-                  : t("transactions.filters.expand")}
+                {filtersExpanded ? (
+                  <>
+                    <ChevronUpIcon />
+                    {t("transactions.filters.collapse")}
+                  </>
+                ) : (
+                  <>
+                    <ChevronDownIcon />
+                    {t("transactions.filters.expand")}
+                  </>
+                )}
               </button>
             </div>
 
@@ -1090,3 +1098,29 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
     </div>
   );
 }
+const ChevronDownIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 20 20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    className="h-4 w-4"
+  >
+    <path d="M5 8.5 10 13l5-4.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const ChevronUpIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 20 20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    className="h-4 w-4"
+  >
+    <path d="M5 11.5 10 7l5 4.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
