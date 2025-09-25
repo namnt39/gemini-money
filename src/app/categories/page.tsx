@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { supabase } from "@/lib/supabaseClient";
+import { isSupabaseConfigured, supabase, supabaseConfigurationError } from "@/lib/supabaseClient";
 import { createTranslator } from "@/lib/i18n";
 import RemoteImage from "@/components/RemoteImage";
 
@@ -23,22 +23,37 @@ const getNatureLabel = (value: string | undefined | null, t: ReturnType<typeof c
   return natureMap[value] ?? value;
 };
 
-async function getCategories() {
-  const { data, error } = await supabase
-    .from("subcategories")
-    .select("id, name, image_url, categories(transaction_nature)")
-    .order("name", { ascending: true });
+type CategoriesResult = { categories: CategoryRecord[]; errorMessage?: string };
+
+async function getCategories(): Promise<CategoriesResult> {
+  if (!supabase) {
+    const message =
+      supabaseConfigurationError?.message ?? "Supabase client is not configured.";
+    console.error("Unable to fetch subcategories:", message);
+    return { categories: [], errorMessage: message };
+  }
+
+  const [{ data, error }, { data: categories, error: categoriesError }] = await Promise.all([
+    supabase
+      .from("subcategories")
+      .select("id, name, image_url, categories(transaction_nature)")
+      .order("name", { ascending: true }),
+    supabase
+      .from("categories")
+      .select("id, name, image_url, transaction_nature")
+      .order("name", { ascending: true }),
+  ]);
+
+  let errorMessage: string | undefined;
 
   if (error) {
+    errorMessage = error.message || "Unable to fetch subcategories.";
     console.error("Unable to fetch subcategories:", error);
   }
 
-  const { data: categories, error: categoriesError } = await supabase
-    .from("categories")
-    .select("id, name, image_url, transaction_nature")
-    .order("name", { ascending: true });
-
   if (categoriesError) {
+    const message = categoriesError.message || "Unable to fetch categories.";
+    errorMessage = errorMessage ? `${errorMessage} ${message}` : message;
     console.error("Unable to fetch categories:", categoriesError);
   }
 
@@ -58,12 +73,13 @@ async function getCategories() {
     }
   }
 
-  return combined;
+  return { categories: combined, errorMessage };
 }
 
 export default async function CategoriesPage() {
   const t = createTranslator();
-  const categories = await getCategories();
+  const result = await getCategories();
+  const errorMessage = result.errorMessage || (!isSupabaseConfigured ? supabaseConfigurationError?.message : undefined);
 
   return (
     <div>
@@ -78,6 +94,11 @@ export default async function CategoriesPage() {
       </div>
 
       <div className="bg-white rounded-lg shadow-md">
+        {errorMessage && (
+          <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            {errorMessage}
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
@@ -88,7 +109,7 @@ export default async function CategoriesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {categories.map((category) => {
+              {result.categories.map((category) => {
                 const nature = category.transaction_nature ?? category.categories?.transaction_nature ?? undefined;
                 return (
                   <tr key={category.id}>
@@ -112,7 +133,7 @@ export default async function CategoriesPage() {
                   </tr>
                 );
               })}
-              {categories.length === 0 && (
+              {result.categories.length === 0 && (
                 <tr>
                   <td className="px-4 py-6 text-center text-gray-500" colSpan={3}>
                     {t("categories.emptyState")}

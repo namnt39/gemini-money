@@ -1,6 +1,10 @@
 import Link from "next/link";
 
-import { supabase } from "@/lib/supabaseClient";
+import {
+  isSupabaseConfigured,
+  supabase,
+  supabaseConfigurationError,
+} from "@/lib/supabaseClient";
 import { createTranslator } from "@/lib/i18n";
 import Tooltip from "@/components/Tooltip";
 
@@ -160,7 +164,16 @@ function getDateRange(filters: TransactionFilters) {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-async function fetchTransactions(filters: TransactionFilters): Promise<{ rows: TransactionListItem[]; count: number }> {
+async function fetchTransactions(
+  filters: TransactionFilters
+): Promise<{ rows: TransactionListItem[]; count: number; errorMessage?: string }> {
+  if (!supabase) {
+    const message =
+      supabaseConfigurationError?.message ?? "Supabase client is not configured.";
+    console.error("Failed to fetch transactions:", message);
+    return { rows: [], count: 0, errorMessage: message };
+  }
+
   const { start, end } = getDateRange(filters);
 
   let query = supabase
@@ -217,8 +230,9 @@ async function fetchTransactions(filters: TransactionFilters): Promise<{ rows: T
   const { data, count, error } = await query.returns<TransactionQueryRow[]>();
 
   if (error) {
+    const message = error.message || "Unable to fetch transactions.";
     console.error("Failed to fetch transactions:", error);
-    return { rows: [], count: 0 };
+    return { rows: [], count: 0, errorMessage: message };
   }
 
   const rows: TransactionQueryRow[] = data ?? [];
@@ -248,18 +262,26 @@ async function fetchTransactions(filters: TransactionFilters): Promise<{ rows: T
   return { rows: mapped, count: count ?? mapped.length };
 }
 
-async function fetchAccounts(): Promise<AccountRecord[]> {
+async function fetchAccounts(): Promise<{ accounts: AccountRecord[]; errorMessage?: string }> {
+  if (!supabase) {
+    const message =
+      supabaseConfigurationError?.message ?? "Supabase client is not configured.";
+    console.error("Failed to fetch accounts:", message);
+    return { accounts: [], errorMessage: message };
+  }
+
   const { data, error } = await supabase
     .from("accounts")
     .select("id, name, image_url, type")
     .order("name", { ascending: true });
 
   if (error) {
+    const message = error.message || "Unable to fetch accounts.";
     console.error("Failed to fetch accounts:", error);
-    return [];
+    return { accounts: [], errorMessage: message };
   }
 
-  return (data as AccountRecord[]) || [];
+  return { accounts: ((data as AccountRecord[]) ?? []) as AccountRecord[] };
 }
 
 type TransactionsPageProps = {
@@ -282,10 +304,14 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
   const filters = sanitizeFilters(resolvedParams);
   const t = createTranslator();
 
-  const [{ rows, count }, accounts] = await Promise.all([
+  const [transactionsResult, accountsResult] = await Promise.all([
     fetchTransactions(filters),
     fetchAccounts(),
   ]);
+
+  const combinedError =
+    transactionsResult.errorMessage || accountsResult.errorMessage ||
+    (!isSupabaseConfigured ? supabaseConfigurationError?.message : undefined);
 
   return (
     <div>
@@ -302,10 +328,11 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
       </div>
 
       <TransactionsView
-        transactions={rows}
-        totalCount={count}
-        accounts={accounts}
+        transactions={transactionsResult.rows}
+        totalCount={transactionsResult.count}
+        accounts={accountsResult.accounts}
         filters={filters}
+        errorMessage={combinedError}
       />
     </div>
   );
