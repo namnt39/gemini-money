@@ -20,6 +20,7 @@ type TransactionData = {
   personId: string;
   date: string;
   cashback: CashbackData | null; // include cashback information
+  debtMode?: "collect" | "lend";
 };
 
 export async function createTransaction(data: TransactionData) {
@@ -157,11 +158,25 @@ export async function createTransaction(data: TransactionData) {
     transactionToInsert.to_account_id = data.toAccountId;
     transactionToInsert.subcategory_id = data.subcategoryId;
   } else if (data.activeTab === "debt") {
-    if (!data.fromAccountId || !data.personId) {
+    if (!data.personId) {
       return { success: false, message: "Please choose a person and account." };
     }
-    transactionToInsert.from_account_id = data.fromAccountId;
+
+    const debtMode = data.debtMode === "collect" ? "collect" : "lend";
     transactionToInsert.person_id = data.personId;
+
+    if (debtMode === "collect") {
+      if (!data.toAccountId) {
+        return { success: false, message: "Please choose a destination account." };
+      }
+      transactionToInsert.to_account_id = data.toAccountId;
+    } else {
+      if (!data.fromAccountId) {
+        return { success: false, message: "Please choose a source account." };
+      }
+      transactionToInsert.from_account_id = data.fromAccountId;
+    }
+
     if (data.subcategoryId) {
       transactionToInsert.subcategory_id = data.subcategoryId;
     }

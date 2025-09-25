@@ -12,6 +12,7 @@ const resources = {
       save: "Save",
       back: "Back",
       loading: "Saving...",
+      loadingApp: "Loading...",
       notes: "Notes",
       amount: "Amount",
       date: "Date",
@@ -118,6 +119,11 @@ const resources = {
         transfer: "Transfers",
         debt: "Debt",
       },
+      debtModes: {
+        lend: "Lend out",
+        collect: "Collect debt",
+        label: "Debt direction",
+      },
       labels: {
         fromAccount: "From Account",
         toAccount: "To Account",
@@ -170,6 +176,17 @@ const resources = {
         DE: "Debt",
         unknown: "Unknown",
       },
+      filters: {
+        typeLabel: "Filter by type",
+        searchLabel: "Search",
+        searchPlaceholder: "Search categories...",
+        allTypes: "All types",
+        noResults: "No categories match your filters.",
+      },
+      actions: {
+        editTooltip: "Edit category",
+        deleteTooltip: "Delete category",
+      },
     },
     categoryForm: {
       title: "Add New Category",
@@ -199,6 +216,7 @@ const resources = {
       save: "Lưu",
       back: "Quay lại",
       loading: "Đang lưu...",
+      loadingApp: "Đang tải...",
       notes: "Ghi chú",
       amount: "Số tiền",
       date: "Ngày",
@@ -305,6 +323,11 @@ const resources = {
         transfer: "Chuyển khoản",
         debt: "Công nợ",
       },
+      debtModes: {
+        lend: "Cho mượn",
+        collect: "Thu nợ",
+        label: "Loại giao dịch nợ",
+      },
       labels: {
         fromAccount: "Từ Tài khoản",
         toAccount: "Đến Tài khoản",
@@ -356,6 +379,17 @@ const resources = {
         TR: "Chuyển khoản",
         DE: "Công nợ",
         unknown: "Không xác định",
+      },
+      filters: {
+        typeLabel: "Lọc theo loại",
+        searchLabel: "Tìm kiếm",
+        searchPlaceholder: "Tìm kiếm danh mục...",
+        allTypes: "Tất cả",
+        noResults: "Không có danh mục phù hợp với bộ lọc.",
+      },
+      actions: {
+        editTooltip: "Chỉnh sửa danh mục",
+        deleteTooltip: "Xóa danh mục",
       },
     },
     categoryForm: {

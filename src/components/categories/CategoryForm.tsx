@@ -4,6 +4,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createCategory, TransactionNature } from "@/app/categories/actions";
+import { useAppShell } from "@/components/AppShellProvider";
 import { createTranslator, TranslationKey } from "@/lib/i18n";
 
 const natureValues: TransactionNature[] = ["EX", "IN", "TR", "DE"];
@@ -27,6 +28,7 @@ const getInitialNature = (defaultNature?: string): TransactionNature => {
 export default function CategoryForm({ returnTo, defaultNature }: CategoryFormProps) {
   const router = useRouter();
   const t = createTranslator();
+  const { showSuccess } = useAppShell();
   const initialNature = useMemo(() => getInitialNature(defaultNature), [defaultNature]);
   const natureOptions = useMemo(
     () =>
@@ -74,7 +76,7 @@ export default function CategoryForm({ returnTo, defaultNature }: CategoryFormPr
       return;
     }
 
-    alert(result.message);
+    showSuccess(result.message);
     try {
       const targetUrl = new URL(returnTo, window.location.origin);
       if (result.subcategoryId) {

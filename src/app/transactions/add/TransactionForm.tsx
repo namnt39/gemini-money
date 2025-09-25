@@ -8,8 +8,10 @@ import AmountInput from "@/components/forms/AmountInput";
 import CustomSelect from "@/components/forms/CustomSelect";
 import CashbackInput from "@/components/forms/CashbackInput";
 import { createTranslator } from "@/lib/i18n";
+import { useAppShell } from "@/components/AppShellProvider";
 
 type Tab = "expense" | "income" | "transfer" | "debt";
+type DebtMode = "collect" | "lend";
 type TransactionFormProps = {
   accounts: Account[];
   subcategories: Subcategory[];
@@ -31,6 +33,7 @@ type PersistedState = {
   date: string;
   cashbackPercent: number;
   cashbackAmount: number;
+  debtMode: DebtMode;
 };
 
 const STORAGE_KEY = "transactions:add-form-state";
@@ -75,6 +78,7 @@ export default function TransactionForm({
 }: TransactionFormProps) {
   const t = createTranslator();
   const router = useRouter();
+  const { showSuccess } = useAppShell();
 
   const persistedStateRef = useRef<PersistedState | null>(null);
   if (persistedStateRef.current === null && typeof window !== "undefined") {
@@ -87,7 +91,21 @@ export default function TransactionForm({
         sessionStorage.removeItem(PRESERVE_KEY);
       }
       if (raw && shouldPreserve) {
-        persistedStateRef.current = JSON.parse(raw) as PersistedState;
+        const parsed = JSON.parse(raw) as Partial<PersistedState>;
+        const today = new Date().toISOString().split("T")[0];
+        persistedStateRef.current = {
+          activeTab: parsed.activeTab ?? "expense",
+          amount: parsed.amount ?? "",
+          fromAccountId: parsed.fromAccountId ?? "",
+          toAccountId: parsed.toAccountId ?? "",
+          subcategoryId: parsed.subcategoryId ?? "",
+          personId: parsed.personId ?? "",
+          notes: parsed.notes ?? "",
+          date: parsed.date ?? today,
+          cashbackPercent: parsed.cashbackPercent ?? 0,
+          cashbackAmount: parsed.cashbackAmount ?? 0,
+          debtMode: parsed.debtMode === "collect" ? "collect" : "lend",
+        };
       }
     } catch {
       persistedStateRef.current = null;
@@ -105,6 +123,7 @@ export default function TransactionForm({
   const defaultDate = persistedState?.date ?? new Date().toISOString().split("T")[0];
   const defaultCashbackPercent = persistedState?.cashbackPercent ?? 0;
   const defaultCashbackAmount = persistedState?.cashbackAmount ?? 0;
+  const defaultDebtMode: DebtMode = persistedState?.debtMode ?? "lend";
 
   const [activeTab, setActiveTab] = useState<Tab>(defaultTabValue);
   const [amount, setAmount] = useState(defaultAmount);
@@ -115,6 +134,7 @@ export default function TransactionForm({
   const [notes, setNotes] = useState(defaultNotes);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [date, setDate] = useState(defaultDate);
+  const [debtMode, setDebtMode] = useState<DebtMode>(defaultDebtMode);
 
   const [showCashback, setShowCashback] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -134,6 +154,7 @@ export default function TransactionForm({
     date: defaultDate,
     cashbackPercent: defaultCashbackPercent,
     cashbackAmount: defaultCashbackAmount,
+    debtMode: defaultDebtMode,
   });
 
   // Determine whether to show cashback input based on the selected expense account
@@ -148,6 +169,17 @@ export default function TransactionForm({
       setCashbackInfo({ percent: 0, amount: 0 });
     }
   }, [fromAccountId, accounts]);
+
+  useEffect(() => {
+    if (activeTab !== "debt") {
+      return;
+    }
+    if (debtMode === "lend") {
+      setToAccountId("");
+    } else {
+      setFromAccountId("");
+    }
+  }, [activeTab, debtMode]);
 
   const getTransactionNature = useCallback((sub: Subcategory): string | null => {
     if (sub.transaction_nature) {
@@ -271,9 +303,10 @@ export default function TransactionForm({
       snapshot.notes !== notes ||
       snapshot.date !== date ||
       snapshot.cashbackPercent !== cashbackInfo.percent ||
-      snapshot.cashbackAmount !== cashbackInfo.amount
+      snapshot.cashbackAmount !== cashbackInfo.amount ||
+      snapshot.debtMode !== debtMode
     );
-  }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo]);
+  }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo, debtMode]);
 
   const handleBack = useCallback(() => {
     if (isDirty) {
@@ -305,10 +338,11 @@ export default function TransactionForm({
       date,
       cashbackPercent: cashbackInfo.percent,
       cashbackAmount: cashbackInfo.amount,
+      debtMode,
     };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     persistedStateRef.current = payload;
-  }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo]);
+  }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo, debtMode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -325,48 +359,37 @@ export default function TransactionForm({
         }
       : null;
 
+    const preparedFromAccountId = activeTab === "debt" && debtMode === "collect" ? "" : fromAccountId;
+    const preparedToAccountId = activeTab === "debt" && debtMode === "lend" ? "" : toAccountId;
+
     const result = await createTransaction({
       activeTab,
       amount: parseFloat(amount.replace(/,/g, "")),
       notes: notes || null,
-      fromAccountId,
-      toAccountId,
+      fromAccountId: preparedFromAccountId,
+      toAccountId: preparedToAccountId,
       subcategoryId,
       personId,
       date,
       cashback: sanitizedCashback, // include cashback values
+      debtMode,
     });
 
     setIsSubmitting(false);
-    alert(result.message);
 
-    if (result.success) {
-      const today = new Date().toISOString().split("T")[0];
-      setAmount("");
-      setFromAccountId("");
-      setToAccountId("");
-      setSubcategoryId("");
-      setPersonId("");
-      setNotes("");
-      setDate(today);
-      setCashbackInfo({ percent: 0, amount: 0 });
+    if (!result.success) {
+      alert(result.message);
+      return;
+    }
+
+    if (typeof window !== "undefined") {
       sessionStorage.removeItem(STORAGE_KEY);
       sessionStorage.removeItem(PRESERVE_KEY);
-      const resetSnapshot: PersistedState = {
-        activeTab,
-        amount: "",
-        fromAccountId: "",
-        toAccountId: "",
-        subcategoryId: "",
-        personId: "",
-        notes: "",
-        date: today,
-        cashbackPercent: 0,
-        cashbackAmount: 0,
-      };
-      initialSnapshotRef.current = resetSnapshot;
-      persistedStateRef.current = resetSnapshot;
     }
+
+    showSuccess(result.message);
+    router.push(returnTo);
+    router.refresh();
   };
 
   useEffect(() => {
@@ -505,15 +528,52 @@ export default function TransactionForm({
               options={peopleWithOptions}
               required
             />
-            <CustomSelect
-              label={t("transactionForm.labels.withdrawFromAccount")}
-              value={fromAccountId}
-              onChange={setFromAccountId}
-              options={accountsWithOptions}
-              required
-              onAddNew={handleAddAccount}
-              addNewLabel={t("transactionForm.addAccount")}
-            />
+
+            <div className="rounded-md border border-indigo-100 bg-indigo-50 px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+                  {t("transactionForm.debtModes.label")}
+                </span>
+                <div className="flex gap-2">
+                  {(["lend", "collect"] as DebtMode[]).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setDebtMode(mode)}
+                      className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+                        debtMode === mode
+                          ? "bg-indigo-600 text-white shadow"
+                          : "border border-indigo-200 bg-white text-indigo-600 hover:bg-indigo-100"
+                      }`}
+                    >
+                      {t(`transactionForm.debtModes.${mode}` as const)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {debtMode === "lend" ? (
+              <CustomSelect
+                label={t("transactionForm.labels.withdrawFromAccount")}
+                value={fromAccountId}
+                onChange={setFromAccountId}
+                options={accountsWithOptions}
+                required
+                onAddNew={handleAddAccount}
+                addNewLabel={t("transactionForm.addAccount")}
+              />
+            ) : (
+              <CustomSelect
+                label={t("transactionForm.labels.toAccount")}
+                value={toAccountId}
+                onChange={setToAccountId}
+                options={accountsWithOptions}
+                required
+                onAddNew={handleAddAccount}
+                addNewLabel={t("transactionForm.addAccount")}
+              />
+            )}
           </>
         )}
 

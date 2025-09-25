@@ -7,7 +7,7 @@ export type TransactionNature = "EX" | "IN" | "TR" | "DE";
 
 type CreateCategoryInput = {
   name: string;
-  transactionNature: TransactionNature;
+  transactionNature: string;
   imageUrl?: string | null;
 };
 
@@ -17,8 +17,6 @@ type ActionResult = {
   categoryId?: string;
   subcategoryId?: string;
 };
-
-const VALID_NATURES: TransactionNature[] = ["EX", "IN", "TR", "DE"];
 
 const normalizeImageUrl = (value?: string | null) => {
   if (!value) return null;
@@ -32,9 +30,21 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
     return { success: false, message: "Please provide a category name." };
   }
 
-  const transactionNature = VALID_NATURES.includes(input.transactionNature)
-    ? input.transactionNature
-    : "EX";
+  const rawNature = (input.transactionNature || "").toString().trim().toUpperCase();
+  const natureAliasMap: Record<string, TransactionNature> = {
+    EX: "EX",
+    EXPENSE: "EX",
+    EXPENSES: "EX",
+    IN: "IN",
+    INCOME: "IN",
+    INCOMES: "IN",
+    TR: "TR",
+    TRANSFER: "TR",
+    TRANSFERS: "TR",
+    DE: "DE",
+    DEBT: "DE",
+  };
+  const transactionNature = natureAliasMap[rawNature] ?? "EX";
 
   const payload = {
     name,

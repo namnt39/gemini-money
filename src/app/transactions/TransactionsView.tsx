@@ -7,10 +7,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import CustomSelect, { Option } from "@/components/forms/CustomSelect";
 import Tooltip from "@/components/Tooltip";
+import RemoteImage from "@/components/RemoteImage";
 import { createTranslator } from "@/lib/i18n";
 import { numberToVietnameseWords } from "@/lib/numberToVietnameseWords";
 import { deleteTransaction, deleteTransactions } from "./actions";
-import { PAGE_SIZE_OPTIONS } from "./constants";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "./constants";
 
 import type { AccountRecord, TransactionFilters, TransactionListItem } from "./types";
 
@@ -88,6 +89,17 @@ const formatAmountWordsTooltip = (words: string | null | undefined) => {
   return `${lines.join("\n")}${ellipsis}`;
 };
 
+const getInitials = (value: string | null | undefined) => {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase();
+};
+
 type DataColumnId =
   | "date"
   | "category"
@@ -125,6 +137,8 @@ type SelectedSummary = {
   amount: number;
   finalPrice: number;
   cashbackAmount: number;
+  percentPortion: number;
+  totalBack: number;
   count: number;
 };
 
@@ -151,27 +165,23 @@ const computePercentAmount = (amount?: number | null, percent?: number | null) =
 const buildCashbackDisplay = (transaction: TransactionListItem) => {
   const percentLabel = formatPercentValue(transaction.cashbackPercent ?? null);
   const hasCashbackAmount = transaction.cashbackAmount != null && !Number.isNaN(transaction.cashbackAmount);
-  const topParts: string[] = [];
-  if (percentLabel) {
-    topParts.push(percentLabel);
-  }
-  if (hasCashbackAmount) {
-    topParts.push(formatNumber(transaction.cashbackAmount));
-  }
-
   const percentAmount = computePercentAmount(transaction.amount, transaction.cashbackPercent ?? null);
-  const bottomParts: string[] = [];
-  if (percentAmount != null) {
-    bottomParts.push(formatNumber(percentAmount));
+  const manualAmount = hasCashbackAmount ? transaction.cashbackAmount ?? 0 : 0;
+  const totalBackAmount = (percentAmount ?? 0) + manualAmount;
+  const breakdownParts: string[] = [];
+  if (percentLabel) {
+    breakdownParts.push(percentLabel);
   }
   if (hasCashbackAmount) {
-    bottomParts.push(formatNumber(transaction.cashbackAmount));
+    breakdownParts.push(formatNumber(transaction.cashbackAmount));
   }
 
   return {
-    hasData: topParts.length > 0,
-    topLine: topParts.join(" + "),
-    bottomLine: bottomParts.length > 0 ? bottomParts.join(" + ") : null,
+    hasData: breakdownParts.length > 0,
+    breakdown: breakdownParts.join(" + "),
+    totalAmount: totalBackAmount,
+    percentAmount: percentAmount ?? 0,
+    manualAmount,
   };
 };
 
@@ -326,6 +336,15 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
   const [resetHighlighted, setResetHighlighted] = useState(false);
   const resetHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showLoading, setShowLoading] = useState(false);
+  const defaultTemporalValues = useMemo(() => {
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    return {
+      year: now.getFullYear(),
+      month,
+      quarter: Math.floor((month - 1) / 3) + 1,
+    };
+  }, []);
 
   useEffect(() => {
     let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -449,11 +468,32 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
         id: "borrower",
         label: t("transactions.tableHeaders.borrower"),
         minWidth: 180,
-        render: (transaction) => (
-          <span className={transaction.person?.name ? "text-gray-700" : "text-gray-400"}>
-            {transaction.person?.name ?? "-"}
-          </span>
-        ),
+        render: (transaction) => {
+          const name = transaction.person?.name?.trim();
+          if (!name) {
+            return <span className="text-gray-400">-</span>;
+          }
+          const initials = getInitials(name);
+          const avatar = transaction.person?.image_url ? (
+            <RemoteImage
+              src={transaction.person.image_url}
+              alt={name}
+              width={32}
+              height={32}
+              className="h-8 w-8 rounded-full object-cover"
+            />
+          ) : (
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold uppercase text-indigo-700">
+              {initials || "?"}
+            </span>
+          );
+          return (
+            <div className="flex items-center gap-2">
+              {avatar}
+              <span className="text-gray-700">{name}</span>
+            </div>
+          );
+        },
       },
       {
         id: "totalBack",
@@ -461,19 +501,19 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
         minWidth: 160,
         align: "right",
         render: (transaction) => {
-          const { hasData, topLine, bottomLine } = buildCashbackDisplay(transaction);
+          const { hasData, breakdown, totalAmount } = buildCashbackDisplay(transaction);
           if (!hasData) {
             return <span className="text-gray-400">-</span>;
           }
           return (
             <div className="flex flex-col items-end text-right">
-              <span className="font-medium text-indigo-700">{topLine}</span>
-              {bottomLine ? <span className="text-xs text-gray-500">{bottomLine}</span> : null}
+              <span className="font-semibold text-indigo-700">{formatNumber(totalAmount)}</span>
+              {breakdown ? <span className="text-xs text-gray-500">{breakdown}</span> : null}
             </div>
           );
         },
         summary: (summary) => (
-          <span className="font-semibold text-indigo-700">{formatNumber(summary.cashbackAmount)}</span>
+          <span className="font-semibold text-indigo-700">{formatNumber(summary.totalBack)}</span>
         ),
       },
       {
@@ -669,6 +709,32 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
   const allVisibleSelected =
     visibleTransactions.length > 0 && visibleTransactions.every((transaction) => selectedIds.has(transaction.id));
 
+  const isResetDisabled = useMemo(() => {
+    const isMonthDefault =
+      typeof filters.month === "number" && filters.month === defaultTemporalValues.month;
+    const isQuarterDefault =
+      typeof filters.quarter === "number" && filters.quarter === defaultTemporalValues.quarter;
+
+    return (
+      filters.nature === "all" &&
+      filters.year === defaultTemporalValues.year &&
+      isMonthDefault &&
+      isQuarterDefault &&
+      !filters.accountId &&
+      filters.page === 1 &&
+      filters.pageSize === DEFAULT_PAGE_SIZE
+    );
+  }, [defaultTemporalValues, filters.accountId, filters.month, filters.nature, filters.page, filters.pageSize, filters.quarter, filters.year]);
+
+  const resetButtonClasses = useMemo(() => {
+    const base = "w-full rounded-md px-3 py-2 text-sm font-medium shadow-sm transition md:w-auto";
+    const activeState = resetHighlighted
+      ? "border border-indigo-500 bg-indigo-600 text-white shadow"
+      : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-100";
+    const disabledState = isResetDisabled ? "cursor-not-allowed opacity-60 hover:bg-white" : "";
+    return `${base} ${activeState} ${disabledState}`.trim();
+  }, [isResetDisabled, resetHighlighted]);
+
   const updateFilters = useCallback(
     (updates: Record<string, string | undefined>, resetPage = true) => {
       startTransition(() => {
@@ -725,6 +791,9 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
   };
 
   const handleReset = useCallback(() => {
+    if (isResetDisabled) {
+      return;
+    }
     const shouldReset = confirm(t("transactions.filters.resetConfirm"));
     if (!shouldReset) {
       return;
@@ -739,7 +808,7 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
     setSelectedIds(new Set());
     setShowSelectedOnly(false);
     resetHighlightTimeoutRef.current = setTimeout(() => setResetHighlighted(false), 1500);
-  }, [pathname, router, startTransition, t]);
+  }, [isResetDisabled, pathname, router, startTransition, t]);
 
   const monthValue = filters.month === "all" ? "all" : String(filters.month);
   const quarterValue = filters.quarter === "all" ? "all" : String(filters.quarter);
@@ -756,12 +825,22 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
       amount: 0,
       finalPrice: 0,
       cashbackAmount: 0,
+      percentPortion: 0,
+      totalBack: 0,
       count: selectedTransactions.length,
     };
     return selectedTransactions.reduce((acc, transaction) => {
-      acc.amount += transaction.amount ?? 0;
-      acc.finalPrice += transaction.finalPrice ?? transaction.amount ?? 0;
-      acc.cashbackAmount += transaction.cashbackAmount ?? 0;
+      const amountValue = transaction.amount ?? 0;
+      const finalPriceValue = transaction.finalPrice ?? amountValue;
+      const manualPortion = transaction.cashbackAmount ?? 0;
+      const percentPortion =
+        computePercentAmount(amountValue, transaction.cashbackPercent ?? null) ?? 0;
+
+      acc.amount += amountValue;
+      acc.finalPrice += finalPriceValue;
+      acc.cashbackAmount += manualPortion;
+      acc.percentPortion += percentPortion;
+      acc.totalBack += manualPortion + percentPortion;
       return acc;
     }, initial);
   }, [selectedTransactions]);
@@ -803,32 +882,27 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
 
       <div className="space-y-4">
         <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-            <span className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+          <button
+            type="button"
+            onClick={() => setFiltersExpanded((prev) => !prev)}
+            aria-expanded={filtersExpanded}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-gray-600 transition hover:bg-gray-50"
+          >
+            <span className="flex items-center gap-3">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+                {filtersExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
+              </span>
               {t("transactions.filters.sectionTitle")}
             </span>
-            <button
-              type="button"
-              onClick={() => setFiltersExpanded((prev) => !prev)}
-              aria-expanded={filtersExpanded}
-              className="inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
-            >
-              {filtersExpanded ? (
-                <>
-                  <ChevronUpIcon />
-                  {t("transactions.filters.collapseButton")}
-                </>
-              ) : (
-                <>
-                  <ChevronDownIcon />
-                  {t("transactions.filters.expandButton")}
-                </>
-              )}
-            </button>
-          </div>
+            <span className="text-xs font-medium text-indigo-600">
+              {filtersExpanded
+                ? t("transactions.filters.collapseButton")
+                : t("transactions.filters.expandButton")}
+            </span>
+          </button>
           {filtersExpanded && (
-            <div className="space-y-6 border-t border-gray-200 p-4">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="space-y-5 border-t border-gray-200 p-4">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700" htmlFor="year-filter">
                     {t("transactions.filters.year")}
@@ -884,8 +958,10 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                     ))}
                   </select>
                 </div>
+              </div>
 
-                <div className="flex flex-col gap-2 xl:col-span-2">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <div className="flex flex-col gap-2 md:flex-1">
                   <CustomSelect
                     label={t("transactions.filters.account")}
                     value={filters.accountId}
@@ -902,61 +978,51 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                     </button>
                   )}
                 </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700" htmlFor="page-size">
-                    {t("transactions.filters.pageSize")}
-                  </label>
-                  <select
-                    id="page-size"
-                    className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    value={filters.pageSize}
-                    onChange={(event) => updateFilters({ pageSize: event.target.value })}
-                  >
-                    {PAGE_SIZE_OPTIONS.map((size) => (
-                      <option key={size} value={size}>
-                        {size}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex items-end">
-                  <button
-                    type="button"
-                    onClick={handleReset}
-                    className={`w-full rounded-md px-3 py-2 text-sm font-medium shadow-sm transition ${
-                      resetHighlighted
-                        ? "border border-indigo-500 bg-indigo-600 text-white shadow"
-                        : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-                    }`}
-                    aria-pressed={resetHighlighted}
-                  >
-                    {t("transactions.filters.reset")}
-                  </button>
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 pt-3">
-                <div className="flex flex-wrap gap-2">
-                  {natureTabs.map((tab) => (
-                    <button
-                      key={tab.value}
-                      type="button"
-                      onClick={() => updateFilters({ nature: tab.value })}
-                      className={`rounded-md border px-3 py-2 text-sm font-medium transition ${
-                        filters.nature === tab.value
-                          ? "border-indigo-500 bg-indigo-600 text-white shadow"
-                          : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-                      }`}
-                    >
-                      {t(tab.labelKey)}
-                    </button>
-                  ))}
-                </div>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className={`${resetButtonClasses} md:self-end`}
+                  aria-pressed={resetHighlighted}
+                  disabled={isResetDisabled}
+                >
+                  {t("transactions.filters.reset")}
+                </button>
               </div>
             </div>
           )}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {natureTabs.map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => updateFilters({ nature: tab.value })}
+                  className={`rounded-md border px-3 py-2 text-sm font-medium transition ${
+                    filters.nature === tab.value
+                      ? "border-indigo-500 bg-indigo-600 text-white shadow"
+                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  {t(tab.labelKey)}
+                </button>
+              ))}
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-600" htmlFor="page-size">
+              {t("transactions.filters.pageSize")}
+              <select
+                id="page-size"
+                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                value={filters.pageSize}
+                onChange={(event) => updateFilters({ pageSize: event.target.value })}
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
@@ -1029,7 +1095,7 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
             <table className="min-w-full text-sm">
               <thead className="bg-gray-100">
                 <tr className="border-b border-gray-200">
-                  <th className="px-4 py-3 text-left">
+                  <th className="sticky left-0 z-30 bg-gray-100 px-4 py-3 text-left">
                     <input
                       type="checkbox"
                       className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
@@ -1077,13 +1143,14 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
               <tbody>
                 {visibleTransactions.map((transaction) => {
                   const isSelected = selectedIds.has(transaction.id);
+                  const rowBackgroundClass = isSelected ? "bg-indigo-50" : "bg-white";
 
                   return (
                     <tr
                       key={transaction.id}
-                      className={`border-b border-gray-200 ${isSelected ? "bg-indigo-50" : "bg-white"}`}
+                      className={`border-b border-gray-200 ${rowBackgroundClass}`}
                     >
-                      <td className="px-4 py-3">
+                      <td className={`sticky left-0 z-20 px-4 py-3 ${rowBackgroundClass}`}>
                         <input
                           type="checkbox"
                           className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
@@ -1113,7 +1180,7 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                 })}
                 {selectedSummary && (
                   <tr className="bg-indigo-50 font-semibold text-indigo-900">
-                    <td className="px-4 py-3" />
+                    <td className="sticky left-0 z-20 px-4 py-3 bg-indigo-50" />
                     {orderedColumns.map((column, index) => {
                       if (column.summary) {
                         const alignClass = column.align === "right" ? "text-right" : "text-left";

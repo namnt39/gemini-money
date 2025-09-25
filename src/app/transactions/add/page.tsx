@@ -114,7 +114,15 @@ async function getFormData() {
       .upsert(upsertPayload, { onConflict: "category_id" });
 
     if (createMissingError) {
-      console.error("Failed to ensure subcategories for categories:", createMissingError);
+      const detail =
+        typeof createMissingError.message === "string" && createMissingError.message.trim().length > 0
+          ? createMissingError.message
+          : null;
+      if (detail) {
+        console.error("Failed to ensure subcategories for categories:", detail);
+      } else {
+        console.warn("Failed to ensure subcategories for categories.");
+      }
     } else {
       const { data: refreshedSubcategories, error: refreshError } = await supabase
         .from("subcategories")

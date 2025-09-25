@@ -24,3 +24,47 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@keyframes toast-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.92);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.toast-pop {
+  animation: toast-pop 0.38s cubic-bezier(0.24, 0.82, 0.25, 1) both;
+}
+
+@keyframes checkmark-stroke {
+  0% {
+    stroke-dashoffset: 18;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.checkmark-svg {
+  height: 18px;
+  width: 18px;
+}
+
+.checkmark-circle {
+  stroke: currentColor;
+}
+
+.checkmark-path {
+  stroke-dasharray: 18;
+  stroke-dashoffset: 18;
+  animation: checkmark-stroke 0.4s ease-out 0.2s forwards;
+  stroke: currentColor;
+}
