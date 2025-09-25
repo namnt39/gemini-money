@@ -9,7 +9,7 @@ type LastEdited = "percent" | "amount" | null;
 type CashbackInputProps = {
   transactionAmount: string;
   account: Account;
-  onCashbackChange: (value: { percent: number; amount: number }) => void;
+  onCashbackChange: (value: { percent: number; amount: number; source: LastEdited }) => void;
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -109,7 +109,7 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
     setLastEdited(null);
     setPercentExceeded(false);
     setAmountExceeded(false);
-    onCashbackChange({ percent: 0, amount: 0 });
+    onCashbackChange({ percent: 0, amount: 0, source: null });
   }, [onCashbackChange]);
 
   useEffect(() => {
@@ -127,7 +127,7 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
 
         if (!amountInput) {
           setLastEdited(null);
-          onCashbackChange({ percent: 0, amount: 0 });
+          onCashbackChange({ percent: 0, amount: 0, source: null });
         } else {
           setLastEdited("amount");
         }
@@ -142,7 +142,7 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
       const exceeded = limit > 0 ? numericPercent > limit + 1e-6 : numericPercent > 0;
       setPercentExceeded(exceeded);
 
-      onCashbackChange({ percent: normalized.percent, amount: normalized.amount });
+      onCashbackChange({ percent: normalized.percent, amount: normalized.amount, source: "percent" });
       return;
     }
 
@@ -155,7 +155,7 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
 
         if (!percentInput) {
           setLastEdited(null);
-          onCashbackChange({ percent: 0, amount: 0 });
+          onCashbackChange({ percent: 0, amount: 0, source: null });
         } else {
           setLastEdited("percent");
         }
@@ -169,11 +169,11 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
       const exceeded = numericAmount > amountLimit;
       setAmountExceeded(exceeded);
 
-      onCashbackChange({ percent: normalized.percent, amount: normalized.amount });
+      onCashbackChange({ percent: normalized.percent, amount: normalized.amount, source: "amount" });
       return;
     }
 
-    onCashbackChange({ percent: 0, amount: 0 });
+    onCashbackChange({ percent: 0, amount: 0, source: null });
   }, [
     account.is_cashback_eligible,
     transactionValue,

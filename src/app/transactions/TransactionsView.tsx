@@ -35,6 +35,28 @@ const natureTabs: NatureTab[] = [
   { value: "transfer", labelKey: "transactions.tabs.transfer" },
 ];
 
+const natureTabPalette: Record<
+  TransactionFilters["nature"],
+  { active: string; inactive: string }
+> = {
+  all: {
+    active: "border-slate-900 bg-slate-900 text-white shadow",
+    inactive: "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+  },
+  income: {
+    active: "border-emerald-600 bg-emerald-500 text-white shadow",
+    inactive: "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+  },
+  expense: {
+    active: "border-rose-600 bg-rose-500 text-white shadow",
+    inactive: "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100",
+  },
+  transfer: {
+    active: "border-sky-600 bg-sky-500 text-white shadow",
+    inactive: "border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100",
+  },
+};
+
 const numberFormatter = new Intl.NumberFormat("vi-VN");
 const monthFormatter = new Intl.DateTimeFormat("en-US", { month: "long" });
 
@@ -108,6 +130,7 @@ type DataColumnId =
   | "notes"
   | "amount"
   | "borrower"
+  | "back"
   | "totalBack"
   | "finalPrice";
 
@@ -119,6 +142,7 @@ const DEFAULT_COLUMN_ORDER: DataColumnId[] = [
   "notes",
   "amount",
   "borrower",
+  "back",
   "totalBack",
   "finalPrice",
 ];
@@ -129,6 +153,7 @@ const DEFAULT_COLUMN_WIDTHS: Partial<Record<DataColumnId, number>> = {
   notes: 260,
   amount: 180,
   borrower: 200,
+  back: 200,
   totalBack: 170,
   finalPrice: 180,
 };
@@ -163,25 +188,40 @@ const computePercentAmount = (amount?: number | null, percent?: number | null) =
 };
 
 const buildCashbackDisplay = (transaction: TransactionListItem) => {
-  const percentLabel = formatPercentValue(transaction.cashbackPercent ?? null);
+  const source = transaction.cashbackSource ?? null;
+  const isAmountSource = source === "amount";
+  const isPercentSource = source === "percent";
+
+  const effectivePercent = isAmountSource ? null : transaction.cashbackPercent ?? null;
+  const percentLabel = formatPercentValue(effectivePercent);
   const hasCashbackAmount = transaction.cashbackAmount != null && !Number.isNaN(transaction.cashbackAmount);
-  const percentAmount = computePercentAmount(transaction.amount, transaction.cashbackPercent ?? null);
-  const manualAmount = hasCashbackAmount ? transaction.cashbackAmount ?? 0 : 0;
-  const totalBackAmount = (percentAmount ?? 0) + manualAmount;
-  const breakdownParts: string[] = [];
+
+  const percentAmount = !isAmountSource
+    ? computePercentAmount(transaction.amount, effectivePercent)
+    : null;
+  const manualContribution = isPercentSource ? 0 : hasCashbackAmount ? transaction.cashbackAmount ?? 0 : 0;
+  const percentContribution = percentAmount ?? 0;
+  const amountLineValue = hasCashbackAmount ? transaction.cashbackAmount ?? 0 : 0;
+
+  let totalBackAmount = manualContribution + percentContribution;
+  if (isPercentSource && hasCashbackAmount) {
+    totalBackAmount = amountLineValue;
+  }
+
+  const lines: string[] = [];
   if (percentLabel) {
-    breakdownParts.push(percentLabel);
+    lines.push(percentLabel);
   }
   if (hasCashbackAmount) {
-    breakdownParts.push(formatNumber(transaction.cashbackAmount));
+    lines.push(formatNumber(amountLineValue));
   }
 
   return {
-    hasData: breakdownParts.length > 0,
-    breakdown: breakdownParts.join(" + "),
+    hasData: lines.length > 0,
+    lines,
     totalAmount: totalBackAmount,
-    percentAmount: percentAmount ?? 0,
-    manualAmount,
+    percentAmount: percentContribution,
+    manualAmount: manualContribution,
   };
 };
 
@@ -327,7 +367,7 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
-  const [filtersExpanded, setFiltersExpanded] = useState(true);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [isCustomizingTable, setIsCustomizingTable] = useState(false);
   const [columnOrder, setColumnOrder] = useState<DataColumnId[]>(DEFAULT_COLUMN_ORDER);
   const [columnWidths, setColumnWidths] = useState<Partial<Record<DataColumnId, number>>>(() => ({}));
@@ -336,6 +376,7 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
   const [resetHighlighted, setResetHighlighted] = useState(false);
   const resetHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showLoading, setShowLoading] = useState(false);
+  const [searchValue, setSearchValue] = useState(filters.searchTerm);
   const defaultTemporalValues = useMemo(() => {
     const now = new Date();
     const month = now.getMonth() + 1;
@@ -359,6 +400,10 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
       }
     };
   }, [isNavigating]);
+
+  useEffect(() => {
+    setSearchValue(filters.searchTerm);
+  }, [filters.searchTerm]);
 
   useEffect(() => {
     setSelectedIds((prev) => {
@@ -490,7 +535,40 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
           return (
             <div className="flex items-center gap-2">
               {avatar}
-              <span className="text-gray-700">{name}</span>
+              <Link
+                href={
+                  transaction.person?.id
+                    ? `/people?personId=${encodeURIComponent(transaction.person.id)}`
+                    : "/people"
+                }
+                className="text-sm font-medium text-indigo-600 transition hover:text-indigo-800"
+              >
+                {name}
+              </Link>
+            </div>
+          );
+        },
+      },
+      {
+        id: "back",
+        label: t("transactions.tableHeaders.back"),
+        minWidth: 160,
+        align: "right",
+        render: (transaction) => {
+          const { hasData, lines } = buildCashbackDisplay(transaction);
+          if (!hasData) {
+            return <span className="text-gray-400">-</span>;
+          }
+          return (
+            <div className="flex flex-col items-end text-right">
+              {lines.map((line, index) => (
+                <span
+                  key={`${transaction.id}-back-${index}-${line}`}
+                  className={index === 0 ? "font-semibold text-indigo-600" : "text-xs text-gray-500"}
+                >
+                  {line}
+                </span>
+              ))}
             </div>
           );
         },
@@ -501,14 +579,13 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
         minWidth: 160,
         align: "right",
         render: (transaction) => {
-          const { hasData, breakdown, totalAmount } = buildCashbackDisplay(transaction);
+          const { hasData, totalAmount } = buildCashbackDisplay(transaction);
           if (!hasData) {
             return <span className="text-gray-400">-</span>;
           }
           return (
             <div className="flex flex-col items-end text-right">
               <span className="font-semibold text-indigo-700">{formatNumber(totalAmount)}</span>
-              {breakdown ? <span className="text-xs text-gray-500">{breakdown}</span> : null}
             </div>
           );
         },
@@ -721,10 +798,23 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
       isMonthDefault &&
       isQuarterDefault &&
       !filters.accountId &&
+      !filters.personId &&
+      filters.searchTerm.trim() === "" &&
       filters.page === 1 &&
       filters.pageSize === DEFAULT_PAGE_SIZE
     );
-  }, [defaultTemporalValues, filters.accountId, filters.month, filters.nature, filters.page, filters.pageSize, filters.quarter, filters.year]);
+  }, [
+    defaultTemporalValues,
+    filters.accountId,
+    filters.month,
+    filters.nature,
+    filters.page,
+    filters.pageSize,
+    filters.personId,
+    filters.quarter,
+    filters.searchTerm,
+    filters.year,
+  ]);
 
   const resetButtonClasses = useMemo(() => {
     const base = "w-full rounded-md px-3 py-2 text-sm font-medium shadow-sm transition md:w-auto";
@@ -758,6 +848,16 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
     },
     [pathname, router, searchParams, startTransition]
   );
+
+  useEffect(() => {
+    if (searchValue === filters.searchTerm) {
+      return;
+    }
+    const timeout = setTimeout(() => {
+      updateFilters({ search: searchValue.trim() ? searchValue.trim() : undefined });
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [filters.searchTerm, searchValue, updateFilters]);
 
   const handleSelectAll = () => {
     setSelectedIds((prev) => {
@@ -817,6 +917,13 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
     () => transactions.filter((transaction) => selectedIds.has(transaction.id)),
     [transactions, selectedIds]
   );
+  const activeBorrowerName = useMemo(() => {
+    if (!filters.personId) {
+      return null;
+    }
+    const match = transactions.find((transaction) => transaction.person?.id === filters.personId);
+    return match?.person?.name ?? null;
+  }, [filters.personId, transactions]);
   const selectedSummary = useMemo(() => {
     if (selectedTransactions.length === 0) {
       return null;
@@ -832,15 +939,13 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
     return selectedTransactions.reduce((acc, transaction) => {
       const amountValue = transaction.amount ?? 0;
       const finalPriceValue = transaction.finalPrice ?? amountValue;
-      const manualPortion = transaction.cashbackAmount ?? 0;
-      const percentPortion =
-        computePercentAmount(amountValue, transaction.cashbackPercent ?? null) ?? 0;
+      const breakdown = buildCashbackDisplay(transaction);
 
       acc.amount += amountValue;
       acc.finalPrice += finalPriceValue;
-      acc.cashbackAmount += manualPortion;
-      acc.percentPortion += percentPortion;
-      acc.totalBack += manualPortion + percentPortion;
+      acc.cashbackAmount += breakdown.manualAmount;
+      acc.percentPortion += breakdown.percentAmount;
+      acc.totalBack += breakdown.totalAmount;
       return acc;
     }, initial);
   }, [selectedTransactions]);
@@ -894,7 +999,7 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
               </span>
               {t("transactions.filters.sectionTitle")}
             </span>
-            <span className="text-xs font-medium text-indigo-600">
+            <span className="text-xs font-medium uppercase tracking-wide text-indigo-600">
               {filtersExpanded
                 ? t("transactions.filters.collapseButton")
                 : t("transactions.filters.expandButton")}
@@ -960,128 +1065,156 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                 </div>
               </div>
 
-              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                <div className="flex flex-col gap-2 md:flex-1">
-                  <CustomSelect
-                    label={t("transactions.filters.account")}
-                    value={filters.accountId}
-                    onChange={(value) => updateFilters({ accountId: value === "__add_new__" ? undefined : value })}
-                    options={accountOptions}
-                  />
-                  {filters.accountId && (
+              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div className="flex flex-col gap-2 md:flex-1">
+                    <CustomSelect
+                      label={t("transactions.filters.account")}
+                      value={filters.accountId}
+                      onChange={(value) => updateFilters({ accountId: value === "__add_new__" ? undefined : value })}
+                      options={accountOptions}
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 md:justify-end">
+                    {filters.accountId && (
+                      <button
+                        type="button"
+                        onClick={() => updateFilters({ accountId: undefined })}
+                        className="text-xs font-semibold uppercase tracking-wide text-indigo-600 transition hover:text-indigo-800"
+                      >
+                        {t("transactions.filters.allAccounts")}
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => updateFilters({ accountId: undefined })}
-                      className="self-start text-xs font-medium text-indigo-600 hover:text-indigo-800"
+                      onClick={handleReset}
+                      className={resetButtonClasses}
+                      aria-pressed={resetHighlighted}
+                      disabled={isResetDisabled}
                     >
-                      {t("transactions.filters.allAccounts")}
+                      {t("transactions.filters.reset")}
                     </button>
-                  )}
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className={`${resetButtonClasses} md:self-end`}
-                  aria-pressed={resetHighlighted}
-                  disabled={isResetDisabled}
-                >
-                  {t("transactions.filters.reset")}
-                </button>
               </div>
             </div>
           )}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-4 py-3">
-            <div className="flex flex-wrap items-center gap-2">
-              {natureTabs.map((tab) => (
-                <button
-                  key={tab.value}
-                  type="button"
-                  onClick={() => updateFilters({ nature: tab.value })}
-                  className={`rounded-md border px-3 py-2 text-sm font-medium transition ${
-                    filters.nature === tab.value
-                      ? "border-indigo-500 bg-indigo-600 text-white shadow"
-                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  {t(tab.labelKey)}
-                </button>
-              ))}
-            </div>
-            <label className="flex items-center gap-2 text-sm text-gray-600" htmlFor="page-size">
-              {t("transactions.filters.pageSize")}
-              <select
-                id="page-size"
-                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                value={filters.pageSize}
-                onChange={(event) => updateFilters({ pageSize: event.target.value })}
-              >
-                {PAGE_SIZE_OPTIONS.map((size) => (
-                  <option key={size} value={size}>
-                    {size}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
           {errorMessage && (
             <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{errorMessage}</div>
           )}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Tooltip label={t("transactions.actions.addTooltip")}>
-                <Link
-                  href="/transactions/add"
-                  className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-                >
-                  {t("transactions.addButton")}
-                </Link>
-              </Tooltip>
-              <DeleteSelectedButton selectedIds={selectedIdsArray} onDeleted={clearSelection} />
-              {selectedIdsArray.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleDeselectAll}
-                  className="inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
-                >
-                  {t("transactions.actions.deselect")}
-                </button>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={toggleCustomization}
-                className={`inline-flex items-center gap-2 rounded border px-3 py-2 text-sm font-medium transition ${
-                  isCustomizingTable
-                    ? "border-indigo-500 bg-indigo-600 text-white shadow"
-                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                {isCustomizingTable
-                  ? t("transactions.table.doneCustomizing")
-                  : t("transactions.table.customize")}
-              </button>
-              {isCustomizingTable && (
-                <button
-                  type="button"
-                  onClick={handleResetLayout}
-                  className="inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
-                >
-                  {t("transactions.table.resetLayout")}
-                </button>
-              )}
-              <label className="flex items-center gap-2 text-sm text-gray-600">
+          <div className="flex flex-col gap-4 border-b border-gray-200 bg-gray-50 px-4 py-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="w-full md:max-w-sm md:flex-1">
                 <input
-                  type="checkbox"
-                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                  checked={showSelectedOnly}
-                  onChange={(event) => setShowSelectedOnly(event.target.checked)}
+                  type="search"
+                  value={searchValue}
+                  onChange={(event) => setSearchValue(event.target.value)}
+                  placeholder={t("common.searchPlaceholder")}
+                  aria-label={t("common.searchPlaceholder")}
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 />
-                {t("transactions.filters.showOnlySelected")}
-              </label>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                {natureTabs.map((tab) => {
+                  const palette = natureTabPalette[tab.value];
+                  const isActive = filters.nature === tab.value;
+                  return (
+                    <button
+                      key={tab.value}
+                      type="button"
+                      onClick={() => updateFilters({ nature: tab.value })}
+                      className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${
+                        isActive ? palette.active : palette.inactive
+                      }`}
+                    >
+                      {t(tab.labelKey)}
+                    </button>
+                  );
+                })}
+                {filters.personId && (
+                  <button
+                    type="button"
+                    onClick={() => updateFilters({ personId: undefined })}
+                    className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-700 shadow-sm transition hover:bg-indigo-50"
+                  >
+                    <span>
+                      {t("transactions.filters.personFilter")}: {activeBorrowerName ?? t("transactions.filters.unknownPerson")}
+                    </span>
+                    <span aria-hidden="true">×</span>
+                  </button>
+                )}
+                <Tooltip label={t("transactions.actions.addTooltip")}>
+                  <Link
+                    href="/transactions/add"
+                    className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+                  >
+                    {t("transactions.addButton")}
+                  </Link>
+                </Tooltip>
+                <DeleteSelectedButton selectedIds={selectedIdsArray} onDeleted={clearSelection} />
+                {selectedIdsArray.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleDeselectAll}
+                    className="inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
+                  >
+                    {t("transactions.actions.deselect")}
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-sm text-gray-600" htmlFor="page-size">
+                  {t("transactions.filters.pageSize")}
+                  <select
+                    id="page-size"
+                    className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    value={filters.pageSize}
+                    onChange={(event) => updateFilters({ pageSize: event.target.value })}
+                  >
+                    {PAGE_SIZE_OPTIONS.map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={toggleCustomization}
+                  className={`inline-flex items-center gap-2 rounded border px-3 py-2 text-sm font-medium transition ${
+                    isCustomizingTable
+                      ? "border-indigo-500 bg-indigo-600 text-white shadow"
+                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  {isCustomizingTable
+                    ? t("transactions.table.doneCustomizing")
+                    : t("transactions.table.customize")}
+                </button>
+                {isCustomizingTable && (
+                  <button
+                    type="button"
+                    onClick={handleResetLayout}
+                    className="inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
+                  >
+                    {t("transactions.table.resetLayout")}
+                  </button>
+                )}
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    checked={showSelectedOnly}
+                    onChange={(event) => setShowSelectedOnly(event.target.checked)}
+                  />
+                  {t("transactions.filters.showOnlySelected")}
+                </label>
+              </div>
             </div>
           </div>
 
@@ -1095,7 +1228,7 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
             <table className="min-w-full text-sm">
               <thead className="bg-gray-100">
                 <tr className="border-b border-gray-200">
-                  <th className="sticky left-0 z-30 bg-gray-100 px-4 py-3 text-left">
+                  <th className="sticky left-0 z-30 border-r border-gray-200 bg-gray-100 px-4 py-3 text-left">
                     <input
                       type="checkbox"
                       className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
@@ -1104,12 +1237,13 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                       onChange={handleSelectAll}
                     />
                   </th>
-                  {orderedColumns.map((column) => {
+                  {orderedColumns.map((column, index) => {
                     const width = getColumnWidth(column);
+                    const borderClass = index === 0 ? "" : "border-l border-gray-200";
                     return (
                       <th
                         key={column.id}
-                        className={`px-4 py-3 text-left font-medium text-gray-700 ${
+                        className={`px-4 py-3 text-left font-medium text-gray-700 ${borderClass} ${
                           isCustomizingTable ? "cursor-move select-none" : ""
                         }`}
                         style={{ width, minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
@@ -1135,7 +1269,7 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                       </th>
                     );
                   })}
-                  <th className="whitespace-nowrap px-4 py-3 text-right font-medium text-gray-700">
+                  <th className="border-l border-gray-200 px-4 py-3 text-right font-medium text-gray-700">
                     {t("common.actions")}
                   </th>
                 </tr>
@@ -1150,7 +1284,7 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                       key={transaction.id}
                       className={`border-b border-gray-200 ${rowBackgroundClass}`}
                     >
-                      <td className={`sticky left-0 z-20 px-4 py-3 ${rowBackgroundClass}`}>
+                      <td className={`sticky left-0 z-20 border-r border-gray-200 px-4 py-3 ${rowBackgroundClass}`}>
                         <input
                           type="checkbox"
                           className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
@@ -1159,20 +1293,21 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                           aria-label={`Select transaction ${transaction.id}`}
                         />
                       </td>
-                      {orderedColumns.map((column) => {
+                      {orderedColumns.map((column, index) => {
                         const width = getColumnWidth(column);
                         const alignClass = column.align === "right" ? "text-right" : "text-left";
+                        const borderClass = index === 0 ? "" : "border-l border-gray-200";
                         return (
                           <td
                             key={column.id}
-                            className={`px-4 py-3 ${alignClass}`}
+                            className={`px-4 py-3 ${alignClass} ${borderClass}`}
                             style={{ width, minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
                           >
                             {column.render(transaction)}
                           </td>
                         );
                       })}
-                      <td className="whitespace-nowrap px-4 py-3 text-right">
+                      <td className="border-l border-gray-200 px-4 py-3 text-right">
                         <ActionButtons transactionId={transaction.id} />
                       </td>
                     </tr>
@@ -1180,14 +1315,15 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                 })}
                 {selectedSummary && (
                   <tr className="bg-indigo-50 font-semibold text-indigo-900">
-                    <td className="sticky left-0 z-20 px-4 py-3 bg-indigo-50" />
+                    <td className="sticky left-0 z-20 border-r border-indigo-200 bg-indigo-50 px-4 py-3" />
                     {orderedColumns.map((column, index) => {
+                      const borderClass = index === 0 ? "" : "border-l border-indigo-200";
                       if (column.summary) {
                         const alignClass = column.align === "right" ? "text-right" : "text-left";
                         return (
                           <td
                             key={column.id}
-                            className={`px-4 py-3 ${alignClass}`}
+                            className={`px-4 py-3 ${alignClass} ${borderClass}`}
                             style={{ width: getColumnWidth(column), minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
                           >
                             {column.summary(selectedSummary)}
@@ -1198,7 +1334,7 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                         return (
                           <td
                             key={column.id}
-                            className="px-4 py-3"
+                            className={`px-4 py-3 ${borderClass}`}
                             style={{ width: getColumnWidth(column), minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
                           >
                             {t("transactions.summary.selectedTotals")} ({selectedSummary.count})
@@ -1208,12 +1344,12 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                       return (
                         <td
                           key={column.id}
-                          className="px-4 py-3"
+                          className={`px-4 py-3 ${borderClass}`}
                           style={{ width: getColumnWidth(column), minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
                         />
                       );
                     })}
-                    <td className="px-4 py-3" />
+                    <td className="border-l border-indigo-200 px-4 py-3" />
                   </tr>
                 )}
                 {visibleTransactions.length === 0 && (

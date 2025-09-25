@@ -21,6 +21,7 @@ type TransactionQueryRow = {
   final_price: number | null;
   cashback_percent: number | null;
   cashback_amount: number | null;
+  cashback_source: string | null;
   notes: string | null;
   from_account_id: string | null;
   to_account_id: string | null;
@@ -83,6 +84,8 @@ function sanitizeFilters(searchParams?: Record<string, string | string[] | undef
   }
 
   const accountId = typeof params.accountId === "string" ? params.accountId : "";
+  const personId = typeof params.personId === "string" ? params.personId : undefined;
+  const searchTerm = typeof params.search === "string" ? params.search : "";
 
   const page = parseNumber(typeof params.page === "string" ? params.page : undefined, 1, 1);
 
@@ -99,6 +102,8 @@ function sanitizeFilters(searchParams?: Record<string, string | string[] | undef
     month,
     quarter,
     accountId,
+    personId,
+    searchTerm,
     page,
     pageSize,
   };
@@ -146,6 +151,7 @@ async function fetchTransactions(
         final_price,
         cashback_percent,
         cashback_amount,
+        cashback_source,
         notes,
         from_account_id,
         to_account_id,
@@ -183,6 +189,26 @@ async function fetchTransactions(
     }
   }
 
+  if (filters.personId) {
+    query = query.eq("person_id", filters.personId);
+  }
+
+  const normalizedSearch = filters.searchTerm.trim();
+  if (normalizedSearch) {
+    const escaped = normalizedSearch.replace(/[%_]/g, (match) => `\\${match}`);
+    const likePattern = `%${escaped}%`;
+    query = query.or(
+      [
+        `notes.ilike.${likePattern}`,
+        `subcategories.name.ilike.${likePattern}`,
+        `subcategories.categories.name.ilike.${likePattern}`,
+        `from_account.name.ilike.${likePattern}`,
+        `to_account.name.ilike.${likePattern}`,
+        `person.name.ilike.${likePattern}`,
+      ].join(",")
+    );
+  }
+
   const startIndex = (filters.page - 1) * filters.pageSize;
   const endIndex = startIndex + filters.pageSize - 1;
   query = query.range(startIndex, endIndex);
@@ -209,6 +235,10 @@ async function fetchTransactions(
       finalPrice: row.final_price ?? null,
       cashbackPercent: row.cashback_percent ?? null,
       cashbackAmount: row.cashback_amount ?? null,
+      cashbackSource:
+        row.cashback_source === "percent" || row.cashback_source === "amount"
+          ? (row.cashback_source as "percent" | "amount")
+          : null,
       notes: row.notes,
       fromAccount: row.from_account ?? null,
       toAccount: row.to_account ?? null,

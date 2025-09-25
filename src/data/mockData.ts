@@ -30,6 +30,7 @@ type MockTransactionSeed = {
   finalPrice: number | null;
   cashbackPercent: number | null;
   cashbackAmount: number | null;
+  cashbackSource?: "percent" | "amount" | null;
   notes: string | null;
   fromAccountId: string | null;
   toAccountId: string | null;
@@ -109,6 +110,7 @@ const mockTransactions: MockTransactionSeed[] = [
     finalPrice: 1250000,
     cashbackPercent: 3,
     cashbackAmount: 37500,
+    cashbackSource: "percent",
     notes: "Weekly supermarket run",
     fromAccountId: "acc-credit-card",
     toAccountId: null,
@@ -165,6 +167,7 @@ const mockTransactions: MockTransactionSeed[] = [
     finalPrice: 450000,
     cashbackPercent: 1.5,
     cashbackAmount: 6750,
+    cashbackSource: "percent",
     notes: "Coffee meetup",
     fromAccountId: "acc-cash-wallet",
     toAccountId: null,
@@ -277,6 +280,7 @@ function mapToTransactionListItem(seed: MockTransactionSeed): TransactionListIte
     finalPrice: seed.finalPrice,
     cashbackPercent: seed.cashbackPercent,
     cashbackAmount: seed.cashbackAmount,
+    cashbackSource: seed.cashbackSource ?? null,
     notes: seed.notes,
     fromAccount: fromAccount
       ? { id: fromAccount.id, name: fromAccount.name, image_url: fromAccount.image_url }
@@ -336,6 +340,22 @@ export function getMockTransactions(
     }
     if (!filterByNature(transaction, filters.nature)) {
       return false;
+    }
+    if (filters.personId && transaction.person?.id !== filters.personId) {
+      return false;
+    }
+    const normalizedSearch = filters.searchTerm.trim().toLowerCase();
+    if (normalizedSearch) {
+      const haystacks = [
+        transaction.notes,
+        transaction.categoryName,
+        transaction.subcategoryName,
+        transaction.person?.name,
+      ];
+      const matches = haystacks.some((value) => value?.toLowerCase().includes(normalizedSearch));
+      if (!matches) {
+        return false;
+      }
     }
     return true;
   });

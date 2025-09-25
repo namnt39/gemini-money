@@ -7,7 +7,8 @@ const clampNumber = (value: number, min: number, max: number) => Math.min(Math.m
 
 type CashbackData = {
   percent: number; // 0-100
-  amount: number;  // >= 0
+  amount: number; // >= 0
+  source?: "percent" | "amount" | null;
 };
 
 type TransactionData = {
@@ -35,9 +36,12 @@ export async function createTransaction(data: TransactionData) {
   // Validate cashback input if provided
   let cashbackPercent: number | null = null;
   let cashbackAmount: number | null = null;
+  let cashbackSource: "percent" | "amount" | null = null;
 
   if (data.cashback) {
-    const { percent, amount } = data.cashback;
+    const { percent, amount, source } = data.cashback;
+    const inputSource = source === "percent" || source === "amount" ? source : null;
+    cashbackSource = inputSource;
 
     // Coerce NaN -> invalid
     const pct = Number(percent);
@@ -114,7 +118,7 @@ export async function createTransaction(data: TransactionData) {
     normalizedPercent =
       data.amount > 0 ? Math.max(0, Number(((normalizedAmount / data.amount) * 100).toFixed(2))) : 0;
 
-    cashbackPercent = normalizedPercent;
+    cashbackPercent = inputSource === "percent" ? normalizedPercent : null;
     cashbackAmount = normalizedAmount;
   }
 
@@ -130,6 +134,7 @@ export async function createTransaction(data: TransactionData) {
     // Cashback fields
     cashback_percent: cashbackPercent,
     cashback_amount: cashbackAmount,
+    cashback_source: cashbackSource,
     // Final amount after cashback
     final_price: finalPrice,
   };

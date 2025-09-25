@@ -140,7 +140,7 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
       ) : null}
 
       <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-col gap-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
               {t("categories.filters.typeLabel")}
@@ -163,26 +163,23 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
             </div>
           </div>
 
-          <div className="flex min-w-[220px] flex-1 items-center gap-3">
-            <label className="text-sm font-medium text-gray-600" htmlFor="category-search">
-              {t("categories.filters.searchLabel")}
-            </label>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
             <input
-              id="category-search"
               type="search"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder={t("categories.filters.searchPlaceholder")}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              placeholder=""
+              aria-label={t("categories.filters.searchPlaceholder")}
+              className="w-full min-w-[220px] rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:max-w-xs"
             />
-          </div>
 
-          <Link
-            href="/categories/add"
-            className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-          >
-            {t("categories.addButton")}
-          </Link>
+            <Link
+              href="/categories/add"
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+            >
+              {t("categories.addButton")}
+            </Link>
+          </div>
         </div>
       </div>
 

@@ -8,6 +8,8 @@ export type TransactionFilters = {
   month: MonthFilter;
   quarter: QuarterFilter;
   accountId: string;
+  personId?: string;
+  searchTerm: string;
   page: number;
   pageSize: number;
 };
@@ -26,6 +28,7 @@ export type TransactionListItem = {
   finalPrice: number | null;
   cashbackPercent: number | null;
   cashbackAmount: number | null;
+  cashbackSource?: "percent" | "amount" | null;
   notes: string | null;
   fromAccount?: { id: string | null; name: string | null; image_url: string | null } | null;
   toAccount?: { id: string | null; name: string | null; image_url: string | null } | null;
