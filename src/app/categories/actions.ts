@@ -2,8 +2,13 @@
 
 import { supabase } from "@/lib/supabaseClient";
 import { revalidatePath } from "next/cache";
+import {
+  getDatabaseNatureCandidates,
+  normalizeTransactionNature,
+  type TransactionNatureCode,
+} from "@/lib/transactionNature";
 
-export type TransactionNature = "EX" | "IN" | "TR" | "DE";
+export type TransactionNature = TransactionNatureCode;
 
 type CreateCategoryInput = {
   name: string;
@@ -30,41 +35,41 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
     return { success: false, message: "Please provide a category name." };
   }
 
-  const rawNature = (input.transactionNature || "").toString().trim().toUpperCase();
-  const natureAliasMap: Record<string, TransactionNature> = {
-    EX: "EX",
-    EXPENSE: "EX",
-    EXPENSES: "EX",
-    IN: "IN",
-    INCOME: "IN",
-    INCOMES: "IN",
-    TR: "TR",
-    TRANSFER: "TR",
-    TRANSFERS: "TR",
-    DE: "DE",
-    DEBT: "DE",
-  };
-  const transactionNature = natureAliasMap[rawNature] ?? "EX";
+  const transactionNature = normalizeTransactionNature(input.transactionNature) ?? "EX";
+  const imageUrl = normalizeImageUrl(input.imageUrl);
 
-  const payload = {
-    name,
-    transaction_nature: transactionNature,
-    image_url: normalizeImageUrl(input.imageUrl),
-  };
+  const candidates = getDatabaseNatureCandidates(transactionNature);
+  let createdCategory: { id: string; image_url: string | null; transaction_nature?: string | null } | null = null;
+  let lastError: { message?: string } | null = null;
 
-  const { data: createdCategory, error } = await supabase
-    .from("categories")
-    .insert(payload)
-    .select("id, image_url")
-    .single();
+  for (const candidate of candidates) {
+    const attempt = await supabase
+      .from("categories")
+      .insert({
+        name,
+        transaction_nature: candidate,
+        image_url: imageUrl,
+      })
+      .select("id, image_url, transaction_nature")
+      .single();
 
-  if (error) {
-    console.error("Unable to create category:", error);
-    const detail = error?.message ? `: ${error.message}` : "";
+    if (!attempt.error && attempt.data) {
+      createdCategory = attempt.data;
+      break;
+    }
+
+    lastError = attempt.error;
+  }
+
+  if (!createdCategory) {
+    if (lastError) {
+      console.error("Unable to create category:", lastError);
+    }
+    const detail = lastError?.message ? `: ${lastError.message}` : "";
     return { success: false, message: `Unable to create a new category${detail}.` };
   }
 
-  const categoryId = createdCategory?.id;
+  const categoryId = createdCategory.id;
   if (!categoryId) {
     return { success: false, message: "Unable to create a new category." };
   }
@@ -73,6 +78,7 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
     category_id: categoryId,
     name,
     image_url: createdCategory?.image_url ?? null,
+    transaction_nature: createdCategory?.transaction_nature ?? transactionNature,
   };
 
   const { data: createdSubcategory, error: subcategoryError } = await supabase
@@ -100,5 +106,72 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
     message: "Category created successfully!",
     categoryId,
     subcategoryId,
+  };
+}
+
+type DeleteCategoryInput = {
+  categoryId: string;
+  subcategoryId?: string | null;
+};
+
+export async function deleteCategory(input: DeleteCategoryInput): Promise<ActionResult> {
+  const categoryId = input.categoryId?.trim();
+  if (!categoryId) {
+    return { success: false, message: "Invalid category identifier." };
+  }
+
+  const subcategoryId = input.subcategoryId?.trim() || null;
+
+  const { error: subcategoryError } = subcategoryId
+    ? await supabase.from("subcategories").delete().eq("id", subcategoryId)
+    : { error: null };
+
+  if (subcategoryError) {
+    console.error("Unable to delete subcategory:", subcategoryError);
+    const detail = subcategoryError.message ? `: ${subcategoryError.message}` : "";
+    return { success: false, message: `Unable to delete category${detail}.` };
+  }
+
+  let shouldDeleteCategory = !subcategoryId;
+
+  if (subcategoryId) {
+    const { count, error: remainingError } = await supabase
+      .from("subcategories")
+      .select("id", { count: "exact", head: true })
+      .eq("category_id", categoryId);
+
+    if (remainingError) {
+      console.error("Unable to verify remaining subcategories:", remainingError);
+      const detail = remainingError.message ? `: ${remainingError.message}` : "";
+      return { success: false, message: `Unable to delete category${detail}.` };
+    }
+
+    shouldDeleteCategory = (count ?? 0) === 0;
+  }
+
+  if (shouldDeleteCategory) {
+    const { error: cleanupError } = await supabase.from("subcategories").delete().eq("category_id", categoryId);
+    if (cleanupError) {
+      console.warn("Unable to clean up subcategories for category:", cleanupError);
+    }
+
+    const { error: categoryError } = await supabase.from("categories").delete().eq("id", categoryId);
+    if (categoryError) {
+      console.error("Unable to delete category:", categoryError);
+      const detail = categoryError.message ? `: ${categoryError.message}` : "";
+      return { success: false, message: `Unable to delete category${detail}.` };
+    }
+  }
+
+  revalidatePath("/categories");
+  revalidatePath("/transactions");
+  revalidatePath("/transactions/add");
+  revalidatePath("/");
+
+  return {
+    success: true,
+    message: "Category deleted successfully.",
+    categoryId,
+    subcategoryId: subcategoryId ?? undefined,
   };
 }

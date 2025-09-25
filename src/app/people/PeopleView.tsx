@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -123,6 +123,7 @@ export default function PeopleView({ people, filters, accounts, errorMessage }: 
   const [searchValue, setSearchValue] = useState(filters.searchTerm);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
   const [showLoading, setShowLoading] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -179,6 +180,11 @@ export default function PeopleView({ people, filters, accounts, errorMessage }: 
     }, 400);
     return () => clearTimeout(timeout);
   }, [filters.searchTerm, searchValue, updateFilters]);
+
+  const handleSearchClear = useCallback(() => {
+    setSearchValue("");
+    searchInputRef.current?.focus();
+  }, []);
 
   const yearOptions = useMemo(() => {
     const current = new Date().getFullYear();
@@ -343,21 +349,12 @@ export default function PeopleView({ people, filters, accounts, errorMessage }: 
                     />
                   </div>
                   <div className="flex flex-wrap items-center gap-3 md:justify-end">
-                    {filters.accountId && (
-                      <button
-                        type="button"
-                        onClick={() => updateFilters({ accountId: undefined })}
-                        className="text-xs font-semibold uppercase tracking-wide text-indigo-600 transition hover:text-indigo-800"
-                      >
-                        {t("transactions.filters.allAccounts")}
-                      </button>
-                    )}
                     <button
                       type="button"
                       onClick={handleReset}
-                      className={`w-full rounded-md px-3 py-2 text-sm font-medium shadow-sm transition md:w-auto ${
+                      className={`inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium shadow-sm transition ${
                         isResetDisabled
-                          ? "border border-gray-200 bg-gray-100 text-gray-400"
+                          ? "border border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
                           : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
                       }`}
                       disabled={isResetDisabled}
@@ -377,72 +374,85 @@ export default function PeopleView({ people, filters, accounts, errorMessage }: 
           )}
 
           <div className="flex flex-col gap-4 border-b border-gray-200 bg-gray-50 px-4 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Tooltip label={t("people.addMockTooltip")}>
+                <button
+                  type="button"
+                  onClick={() => alert(t("people.addMockAlert"))}
+                  className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+                >
+                  {t("people.addButton")}
+                </button>
+              </Tooltip>
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  {natureTabs.map((tab) => {
-                    const palette = natureTabPalette[tab.value];
-                    const isActive = filters.nature === tab.value;
-                    return (
-                      <button
-                        key={tab.value}
-                        type="button"
-                        onClick={() => updateFilters({ nature: tab.value })}
-                        className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${
-                          isActive ? palette.active : palette.inactive
-                        }`}
-                      >
-                        {t(tab.labelKey)}
-                      </button>
-                    );
-                  })}
-                </div>
-                {filters.personId && activePerson && (
-                  <button
-                    type="button"
-                    onClick={() => updateFilters({ personId: undefined })}
-                    className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-700 shadow-sm transition hover:bg-indigo-50"
-                  >
-                    <span>
-                      {t("transactions.filters.personFilter")}: {activePerson.name}
-                    </span>
-                    <span aria-hidden="true">×</span>
-                  </button>
-                )}
+                {natureTabs.map((tab) => {
+                  const palette = natureTabPalette[tab.value];
+                  const isActive = filters.nature === tab.value;
+                  return (
+                    <button
+                      key={tab.value}
+                      type="button"
+                      onClick={() => updateFilters({ nature: tab.value })}
+                      className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${
+                        isActive ? palette.active : palette.inactive
+                      }`}
+                    >
+                      {t(tab.labelKey)}
+                    </button>
+                  );
+                })}
               </div>
-              <div className="w-full max-w-xs flex-1 md:max-w-sm md:flex-none">
+              {filters.personId && activePerson && (
+                <button
+                  type="button"
+                  onClick={() => updateFilters({ personId: undefined })}
+                  className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-700 shadow-sm transition hover:bg-indigo-50"
+                >
+                  <span>
+                    {t("transactions.filters.personFilter")}: {activePerson.name}
+                  </span>
+                  <span aria-hidden="true">×</span>
+                </button>
+              )}
+            </div>
+            <div className="w-full max-w-xs flex-1 md:max-w-sm md:flex-none">
+              <div className="relative">
                 <input
+                  ref={searchInputRef}
                   type="search"
                   value={searchValue}
                   onChange={(event) => setSearchValue(event.target.value)}
                   placeholder={t("common.searchPlaceholder")}
                   aria-label={t("common.searchPlaceholder")}
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-24 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 />
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Tooltip label={t("people.addMockTooltip")}>
+                {searchValue ? (
                   <button
                     type="button"
-                    onClick={() => alert(t("people.addMockAlert"))}
-                    className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+                    onClick={handleSearchClear}
+                    className="absolute inset-y-1.5 right-2 inline-flex items-center rounded-md border border-transparent px-2 text-xs font-semibold uppercase tracking-wide text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
+                    aria-label={t("common.clear")}
                   >
-                    {t("people.addButton")}
+                    {t("common.clear")}
                   </button>
-                </Tooltip>
-                <ViewToggle
-                  active={viewMode}
-                  onChange={setViewMode}
-                  labels={{ list: t("people.views.list"), cards: t("people.views.cards") }}
-                />
+                ) : null}
               </div>
-              <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
-                <span>
-                  {t("people.summary.countLabel")}: {totalPeople}
-                </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <ViewToggle
+                active={viewMode}
+                onChange={setViewMode}
+                labels={{ list: t("people.views.list"), cards: t("people.views.cards") }}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+              <span>
+                {t("people.summary.countLabel")}: {totalPeople}
+              </span>
                 <span>
                   {t("people.summary.transactionLabel")}: {totalTransactions}
                 </span>

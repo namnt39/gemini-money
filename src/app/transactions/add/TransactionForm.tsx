@@ -8,6 +8,7 @@ import AmountInput from "@/components/forms/AmountInput";
 import CustomSelect from "@/components/forms/CustomSelect";
 import CashbackInput from "@/components/forms/CashbackInput";
 import { createTranslator } from "@/lib/i18n";
+import { normalizeTransactionNature, type TransactionNatureCode } from "@/lib/transactionNature";
 import { useAppShell } from "@/components/AppShellProvider";
 
 type Tab = "expense" | "income" | "transfer" | "debt";
@@ -190,22 +191,23 @@ export default function TransactionForm({
     }
   }, [activeTab, debtMode]);
 
-  const getTransactionNature = useCallback((sub: Subcategory): string | null => {
-    if (sub.transaction_nature) {
-      return sub.transaction_nature;
+  const getTransactionNature = useCallback((sub: Subcategory): TransactionNatureCode | null => {
+    const direct = normalizeTransactionNature(sub.transaction_nature ?? null);
+    if (direct) {
+      return direct;
     }
     if (!sub.categories) return null;
     if (Array.isArray(sub.categories)) {
-      return sub.categories[0]?.transaction_nature ?? null;
+      return normalizeTransactionNature(sub.categories[0]?.transaction_nature ?? null);
     }
-    return sub.categories.transaction_nature ?? null;
+    return normalizeTransactionNature(sub.categories.transaction_nature ?? null);
   }, []);
 
   const mapNatureToTab = useCallback((nature: string | null | undefined): Tab | null => {
-    if (!nature) return null;
-    const normalized = nature.toUpperCase();
+    const normalized = normalizeTransactionNature(nature ?? null);
+    if (!normalized) return null;
     if (normalized === "IN") return "income";
-    if (normalized === "TR") return "transfer";
+    if (normalized === "TF") return "transfer";
     if (normalized === "DE") return "debt";
     if (normalized === "EX") return "expense";
     return null;
@@ -253,7 +255,7 @@ export default function TransactionForm({
     [subcategories, getTransactionNature, mapToOptions]
   );
   const transferCategories = useMemo(
-    () => subcategories.filter((s) => getTransactionNature(s) === "TR").map(mapToOptions),
+    () => subcategories.filter((s) => getTransactionNature(s) === "TF").map(mapToOptions),
     [subcategories, getTransactionNature, mapToOptions]
   );
   const accountsWithOptions = useMemo(() => accounts.map(mapToOptions), [accounts, mapToOptions]);
@@ -287,7 +289,7 @@ export default function TransactionForm({
     const natureMap: Record<Tab, string> = {
       expense: "EX",
       income: "IN",
-      transfer: "TR",
+      transfer: "TF",
       debt: "DE",
     };
     if (typeof window !== "undefined") {

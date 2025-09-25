@@ -2,6 +2,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import { createTranslator } from "@/lib/i18n";
 import TransactionForm from "./TransactionForm";
 import { getMockTransactionFormData } from "@/data/mockData";
+import { normalizeTransactionNature } from "@/lib/transactionNature";
 
 export type Account = {
   id: string;
@@ -55,8 +56,19 @@ async function getFormData() {
         id: subcategory.id,
         name: subcategory.name,
         image_url: subcategory.image_url,
-        transaction_nature: subcategory.transaction_nature,
-        categories: subcategory.categories,
+        transaction_nature: normalizeTransactionNature(subcategory.transaction_nature ?? null) ?? null,
+        categories: Array.isArray(subcategory.categories)
+          ? subcategory.categories.map((category) => ({
+              ...category,
+              transaction_nature: normalizeTransactionNature(category.transaction_nature ?? null) ?? null,
+            }))
+          : subcategory.categories
+            ? {
+                ...subcategory.categories,
+                transaction_nature:
+                  normalizeTransactionNature(subcategory.categories.transaction_nature ?? null) ?? null,
+              }
+            : null,
       })),
       people: people.map((person) => ({
         id: person.id,
@@ -102,18 +114,21 @@ async function getFormData() {
   const existingIds = new Set(typedSubcategories.map((item) => item.id));
   const missingCategories = typedCategories.filter((category) => !existingIds.has(category.id));
 
-  const synthesizedSubcategories = missingCategories.map((category) => ({
-    id: category.id,
-    name: category.name,
-    image_url: category.image_url ?? null,
-    transaction_nature: category.transaction_nature,
-    categories: [
-      {
-        name: category.name,
-        transaction_nature: category.transaction_nature,
-      },
-    ],
-  }));
+  const synthesizedSubcategories = missingCategories.map((category) => {
+    const normalizedNature = normalizeTransactionNature(category.transaction_nature ?? null) ?? null;
+    return {
+      id: category.id,
+      name: category.name,
+      image_url: category.image_url ?? null,
+      transaction_nature: normalizedNature,
+      categories: [
+        {
+          name: category.name,
+          transaction_nature: normalizedNature,
+        },
+      ],
+    };
+  });
 
   return {
     accounts: (accounts as Account[]) || [],

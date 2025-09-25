@@ -109,7 +109,7 @@ export default function CustomSelect({ label, value, onChange, options, required
             leaveTo="opacity-0"
             afterLeave={() => setQuery('')}
           >
-            <Listbox.Options as="div" className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-gray-200 bg-white text-sm shadow-lg">
+            <Listbox.Options as="div" className="absolute z-40 mt-1 w-full overflow-hidden rounded-md border border-gray-200 bg-white text-sm shadow-lg">
               <div className="sticky top-0 z-10 space-y-2 border-b border-gray-200 bg-white p-2">
                 <div className="relative">
                   <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -119,10 +119,23 @@ export default function CustomSelect({ label, value, onChange, options, required
                     ref={searchInputRef}
                     type="text"
                     placeholder={t("common.searchPlaceholder")}
-                    className="w-full rounded-md border border-gray-300 bg-gray-50 py-2 pl-10 pr-4 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="w-full rounded-md border border-gray-300 bg-gray-50 py-2 pl-10 pr-20 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                   />
+                  {query ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuery("");
+                        searchInputRef.current?.focus();
+                      }}
+                      className="absolute inset-y-1 right-2 inline-flex items-center rounded-md border border-transparent px-2 text-xs font-semibold uppercase tracking-wide text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
+                      aria-label={t("common.clear")}
+                    >
+                      {t("common.clear")}
+                    </button>
+                  ) : null}
                 </div>
 
                 {accountTypes.length > 2 && (

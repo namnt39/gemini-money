@@ -1,13 +1,18 @@
 import { isSupabaseConfigured, supabase, supabaseConfigurationError } from "@/lib/supabaseClient";
 import { createTranslator } from "@/lib/i18n";
+import { normalizeTransactionNature } from "@/lib/transactionNature";
 import CategoriesView from "./CategoriesView";
+
+type RawCategoryRelation = { id?: string | null; name?: string | null; transaction_nature?: string | null } | null;
 
 export type CategoryRecord = {
   id: string;
   name: string;
   image_url: string | null;
   transaction_nature?: string | null;
-  categories?: { transaction_nature?: string | null } | null;
+  categories?: RawCategoryRelation;
+  categoryId: string;
+  subcategoryId: string | null;
 };
 
 type CategoriesResult = { categories: CategoryRecord[]; errorMessage?: string };
@@ -23,7 +28,7 @@ async function getCategories(): Promise<CategoriesResult> {
   const [{ data, error }, { data: categories, error: categoriesError }] = await Promise.all([
     supabase
       .from("subcategories")
-      .select("id, name, image_url, categories(transaction_nature)")
+      .select("id, name, image_url, transaction_nature, category_id, categories(id, name, transaction_nature)")
       .order("name", { ascending: true }),
     supabase
       .from("categories")
@@ -44,18 +49,57 @@ async function getCategories(): Promise<CategoriesResult> {
     console.error("Unable to fetch categories:", categoriesError);
   }
 
-  const typedSubcategories = (data as CategoryRecord[]) || [];
-  const typedCategories = (categories as (CategoryRecord & { image_url?: string | null })[] | null) || [];
+  type RawSubcategory = {
+    id: string;
+    name: string;
+    image_url: string | null;
+    transaction_nature?: string | null;
+    category_id?: string | null;
+    categories?: RawCategoryRelation | RawCategoryRelation[];
+  };
 
-  const fallbackEntries = typedCategories.map((item) => ({
-    ...item,
-    categories: null,
+  const typedSubcategories = (data as RawSubcategory[]) || [];
+  const normalizedSubcategories: CategoryRecord[] = typedSubcategories.map((item) => {
+    const rawCategories = item.categories;
+    const parentCategory = Array.isArray(rawCategories) ? rawCategories[0] : rawCategories ?? null;
+    const parentId = parentCategory?.id ?? item.category_id ?? item.id;
+    return {
+      id: item.id,
+      name: item.name,
+      image_url: item.image_url ?? null,
+      transaction_nature: normalizeTransactionNature(item.transaction_nature ?? null) ?? undefined,
+      categories: parentCategory,
+      categoryId: parentId ?? item.id,
+      subcategoryId: item.id,
+    };
+  });
+
+  type RawCategory = {
+    id: string;
+    name: string;
+    image_url: string | null;
+    transaction_nature?: string | null;
+  };
+
+  const typedCategories = (categories as RawCategory[] | null) || [];
+
+  const fallbackEntries: CategoryRecord[] = typedCategories.map((item) => ({
+    id: item.id,
+    name: item.name,
+    image_url: item.image_url ?? null,
+    transaction_nature: normalizeTransactionNature(item.transaction_nature ?? null) ?? undefined,
+    categories: {
+      id: item.id,
+      transaction_nature: normalizeTransactionNature(item.transaction_nature ?? null) ?? undefined,
+    },
+    categoryId: item.id,
+    subcategoryId: null,
   }));
 
-  const combined = [...typedSubcategories];
-  const existingIds = new Set(combined.map((item) => item.id));
+  const combined = [...normalizedSubcategories];
+  const existingCategoryIds = new Set(combined.map((item) => item.categoryId));
   for (const fallback of fallbackEntries) {
-    if (!existingIds.has(fallback.id)) {
+    if (!existingCategoryIds.has(fallback.categoryId)) {
       combined.push(fallback);
     }
   }

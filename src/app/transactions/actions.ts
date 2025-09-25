@@ -36,12 +36,10 @@ export async function createTransaction(data: TransactionData) {
   // Validate cashback input if provided
   let cashbackPercent: number | null = null;
   let cashbackAmount: number | null = null;
-  let cashbackSource: "percent" | "amount" | null = null;
 
   if (data.cashback) {
     const { percent, amount, source } = data.cashback;
     const inputSource = source === "percent" || source === "amount" ? source : null;
-    cashbackSource = inputSource;
 
     // Coerce NaN -> invalid
     const pct = Number(percent);
@@ -134,7 +132,6 @@ export async function createTransaction(data: TransactionData) {
     // Cashback fields
     cashback_percent: cashbackPercent,
     cashback_amount: cashbackAmount,
-    cashback_source: cashbackSource,
     // Final amount after cashback
     final_price: finalPrice,
   };

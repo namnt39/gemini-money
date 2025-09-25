@@ -78,7 +78,7 @@ const formatDate = (date: string) => new Date(date).toLocaleDateString("en-US");
 const amountColorMap: Record<string, string> = {
   EX: "text-red-600",
   IN: "text-green-700",
-  TR: "text-blue-600",
+  TF: "text-blue-600",
 };
 
 const MAX_TOOLTIP_WORDS_PER_LINE = 6;
@@ -377,6 +377,7 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
   const resetHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showLoading, setShowLoading] = useState(false);
   const [searchValue, setSearchValue] = useState(filters.searchTerm);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const defaultTemporalValues = useMemo(() => {
     const now = new Date();
     const month = now.getMonth() + 1;
@@ -817,7 +818,7 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
   ]);
 
   const resetButtonClasses = useMemo(() => {
-    const base = "w-full rounded-md px-3 py-2 text-sm font-medium shadow-sm transition md:w-auto";
+    const base = "inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium shadow-sm transition";
     const activeState = resetHighlighted
       ? "border border-indigo-500 bg-indigo-600 text-white shadow"
       : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-100";
@@ -858,6 +859,11 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
     }, 400);
     return () => clearTimeout(timeout);
   }, [filters.searchTerm, searchValue, updateFilters]);
+
+  const handleSearchClear = useCallback(() => {
+    setSearchValue("");
+    searchInputRef.current?.focus();
+  }, []);
 
   const handleSelectAll = () => {
     setSelectedIds((prev) => {
@@ -1066,7 +1072,7 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
               </div>
 
               <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                   <div className="flex flex-col gap-2 md:flex-1">
                     <CustomSelect
                       label={t("transactions.filters.account")}
@@ -1076,15 +1082,6 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                     />
                   </div>
                   <div className="flex flex-wrap items-center gap-3 md:justify-end">
-                    {filters.accountId && (
-                      <button
-                        type="button"
-                        onClick={() => updateFilters({ accountId: undefined })}
-                        className="text-xs font-semibold uppercase tracking-wide text-indigo-600 transition hover:text-indigo-800"
-                      >
-                        {t("transactions.filters.allAccounts")}
-                      </button>
-                    )}
                     <button
                       type="button"
                       onClick={handleReset}
@@ -1108,18 +1105,39 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
           <div className="flex flex-col gap-4 border-b border-gray-200 bg-gray-50 px-4 py-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="w-full md:max-w-sm md:flex-1">
-                <input
-                  type="search"
-                  value={searchValue}
-                  onChange={(event) => setSearchValue(event.target.value)}
-                  placeholder={t("common.searchPlaceholder")}
-                  aria-label={t("common.searchPlaceholder")}
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
+                <div className="relative">
+                  <input
+                    ref={searchInputRef}
+                    type="search"
+                    value={searchValue}
+                    onChange={(event) => setSearchValue(event.target.value)}
+                    placeholder={t("common.searchPlaceholder")}
+                    aria-label={t("common.searchPlaceholder")}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-24 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  />
+                  {searchValue ? (
+                    <button
+                      type="button"
+                      onClick={handleSearchClear}
+                      className="absolute inset-y-1.5 right-2 inline-flex items-center rounded-md border border-transparent px-2 text-xs font-semibold uppercase tracking-wide text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
+                      aria-label={t("common.clear")}
+                    >
+                      {t("common.clear")}
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </div>
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-wrap items-center gap-2">
+                <Tooltip label={t("transactions.actions.addTooltip")}>
+                  <Link
+                    href="/transactions/add"
+                    className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+                  >
+                    {t("transactions.addButton")}
+                  </Link>
+                </Tooltip>
                 {natureTabs.map((tab) => {
                   const palette = natureTabPalette[tab.value];
                   const isActive = filters.nature === tab.value;
@@ -1148,14 +1166,6 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                     <span aria-hidden="true">×</span>
                   </button>
                 )}
-                <Tooltip label={t("transactions.actions.addTooltip")}>
-                  <Link
-                    href="/transactions/add"
-                    className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-                  >
-                    {t("transactions.addButton")}
-                  </Link>
-                </Tooltip>
                 <DeleteSelectedButton selectedIds={selectedIdsArray} onDeleted={clearSelection} />
                 {selectedIdsArray.length > 0 && (
                   <button
