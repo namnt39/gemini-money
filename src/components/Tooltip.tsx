@@ -32,7 +32,7 @@ export default function Tooltip({ label, children, position = "top" }: TooltipPr
       <span
         id={tooltipId}
         role="tooltip"
-        className={`pointer-events-none absolute z-20 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs font-medium text-white opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 ${POSITION_CLASSES[position]}`}
+        className={`pointer-events-none absolute z-20 whitespace-pre-line rounded bg-gray-900 px-2 py-1 text-left text-xs font-medium text-white opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 ${POSITION_CLASSES[position]}`}
       >
         {label}
       </span>

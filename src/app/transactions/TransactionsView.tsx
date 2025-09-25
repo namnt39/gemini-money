@@ -2,6 +2,7 @@
 
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import CustomSelect, { Option } from "@/components/forms/CustomSelect";
@@ -57,6 +58,36 @@ const amountColorMap: Record<string, string> = {
   TR: "text-blue-600",
 };
 
+const MAX_TOOLTIP_WORDS_PER_LINE = 6;
+const TOOLTIP_LINES = 2;
+
+const formatPercentValue = (value: number | null | undefined) => {
+  if (value == null || Number.isNaN(value)) {
+    return null;
+  }
+  const fixed = value.toFixed(2);
+  const trimmed = fixed.replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+  return `${trimmed}%`;
+};
+
+const formatAmountWordsTooltip = (words: string | null | undefined) => {
+  if (!words) return "";
+  const normalized = words.replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  const tokens = normalized.split(" ");
+  const lines: string[] = [];
+  for (let index = 0; index < TOOLTIP_LINES; index += 1) {
+    const start = index * MAX_TOOLTIP_WORDS_PER_LINE;
+    if (start >= tokens.length) {
+      break;
+    }
+    const end = start + MAX_TOOLTIP_WORDS_PER_LINE;
+    lines.push(tokens.slice(start, end).join(" "));
+  }
+  const ellipsis = tokens.length > MAX_TOOLTIP_WORDS_PER_LINE * TOOLTIP_LINES ? "…" : "";
+  return `${lines.join("\n")}${ellipsis}`;
+};
+
 type DataColumnId =
   | "date"
   | "category"
@@ -86,7 +117,7 @@ const DEFAULT_COLUMN_WIDTHS: Partial<Record<DataColumnId, number>> = {
   notes: 260,
   amount: 180,
   borrower: 200,
-  totalBack: 180,
+  totalBack: 170,
   finalPrice: 180,
 };
 
@@ -104,6 +135,44 @@ type DataColumn = {
   align?: "left" | "right";
   render: (transaction: TransactionListItem) => ReactNode;
   summary?: (summary: SelectedSummary) => ReactNode;
+};
+
+const computePercentAmount = (amount?: number | null, percent?: number | null) => {
+  if (amount == null || percent == null) {
+    return null;
+  }
+  const value = (amount * percent) / 100;
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+  return Math.round(value);
+};
+
+const buildCashbackDisplay = (transaction: TransactionListItem) => {
+  const percentLabel = formatPercentValue(transaction.cashbackPercent ?? null);
+  const hasCashbackAmount = transaction.cashbackAmount != null && !Number.isNaN(transaction.cashbackAmount);
+  const topParts: string[] = [];
+  if (percentLabel) {
+    topParts.push(percentLabel);
+  }
+  if (hasCashbackAmount) {
+    topParts.push(formatNumber(transaction.cashbackAmount));
+  }
+
+  const percentAmount = computePercentAmount(transaction.amount, transaction.cashbackPercent ?? null);
+  const bottomParts: string[] = [];
+  if (percentAmount != null) {
+    bottomParts.push(formatNumber(percentAmount));
+  }
+  if (hasCashbackAmount) {
+    bottomParts.push(formatNumber(transaction.cashbackAmount));
+  }
+
+  return {
+    hasData: topParts.length > 0,
+    topLine: topParts.join(" + "),
+    bottomLine: bottomParts.length > 0 ? bottomParts.join(" + ") : null,
+  };
 };
 
 const PencilIcon = () => (
@@ -363,15 +432,18 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
         align: "right",
         render: (transaction) => {
           const words = amountWordsMap.get(transaction.id) ?? "";
+          const tooltipLabel = formatAmountWordsTooltip(words);
           const natureClass = amountColorMap[transaction.transactionNature ?? ""] ?? "text-gray-800";
-          return (
-            <div className={`space-y-1 text-right ${natureClass}`}>
-              <div className="font-semibold">{formatNumber(transaction.amount)}</div>
-              {words ? <div className="text-xs font-normal text-gray-500">{words}</div> : null}
+          const amountContent = (
+            <div className={`flex flex-col items-end text-right ${natureClass}`}>
+              <span className="font-semibold">{formatNumber(transaction.amount)}</span>
             </div>
           );
+          return tooltipLabel ? <Tooltip label={tooltipLabel}>{amountContent}</Tooltip> : amountContent;
         },
-        summary: (summary) => formatNumber(summary.amount),
+        summary: (summary) => (
+          <span className="font-semibold text-gray-800">{formatNumber(summary.amount)}</span>
+        ),
       },
       {
         id: "borrower",
@@ -386,14 +458,23 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
       {
         id: "totalBack",
         label: t("transactions.tableHeaders.totalBack"),
-        minWidth: 180,
+        minWidth: 160,
         align: "right",
-        render: (transaction) => (
-          <span className="font-medium text-indigo-700">
-            {transaction.cashbackAmount != null ? formatNumber(transaction.cashbackAmount) : "-"}
-          </span>
+        render: (transaction) => {
+          const { hasData, topLine, bottomLine } = buildCashbackDisplay(transaction);
+          if (!hasData) {
+            return <span className="text-gray-400">-</span>;
+          }
+          return (
+            <div className="flex flex-col items-end text-right">
+              <span className="font-medium text-indigo-700">{topLine}</span>
+              {bottomLine ? <span className="text-xs text-gray-500">{bottomLine}</span> : null}
+            </div>
+          );
+        },
+        summary: (summary) => (
+          <span className="font-semibold text-indigo-700">{formatNumber(summary.cashbackAmount)}</span>
         ),
-        summary: (summary) => formatNumber(summary.cashbackAmount),
       },
       {
         id: "finalPrice",
@@ -469,11 +550,9 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
 
   const handleResizeStart = useCallback(
     (event: ReactMouseEvent<HTMLSpanElement>, columnId: DataColumnId) => {
-      if (!isCustomizingTable) {
-        return;
-      }
       event.preventDefault();
-      const headerCell = (event.currentTarget.parentElement as HTMLElement) ?? null;
+      const headerCell =
+        (event.currentTarget.closest("th") as HTMLElement | null) ?? (event.currentTarget.parentElement as HTMLElement | null);
       const startWidth = headerCell ? headerCell.offsetWidth : DEFAULT_COLUMN_WIDTH;
       resizeInfoRef.current = {
         columnId,
@@ -483,7 +562,7 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
       document.addEventListener("mousemove", handleResizeMove);
       document.addEventListener("mouseup", handleResizeStop);
     },
-    [handleResizeMove, handleResizeStop, isCustomizingTable]
+    [handleResizeMove, handleResizeStop]
   );
 
   useEffect(() => {
@@ -722,36 +801,33 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
         </div>
       )}
 
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-        {errorMessage && (
-          <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-            {errorMessage}
+      <div className="space-y-4">
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <span className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+              {t("transactions.filters.sectionTitle")}
+            </span>
+            <button
+              type="button"
+              onClick={() => setFiltersExpanded((prev) => !prev)}
+              aria-expanded={filtersExpanded}
+              className="inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
+            >
+              {filtersExpanded ? (
+                <>
+                  <ChevronUpIcon />
+                  {t("transactions.filters.collapseButton")}
+                </>
+              ) : (
+                <>
+                  <ChevronDownIcon />
+                  {t("transactions.filters.expandButton")}
+                </>
+              )}
+            </button>
           </div>
-        )}
-        <div className="border-b border-gray-200 bg-gray-50">
-          <div className="space-y-6 p-4">
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setFiltersExpanded((prev) => !prev)}
-                aria-expanded={filtersExpanded}
-                className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 transition hover:text-indigo-800"
-              >
-                {filtersExpanded ? (
-                  <>
-                    <ChevronUpIcon />
-                    {t("transactions.filters.collapse")}
-                  </>
-                ) : (
-                  <>
-                    <ChevronDownIcon />
-                    {t("transactions.filters.expand")}
-                  </>
-                )}
-              </button>
-            </div>
-
-            {filtersExpanded && (
+          {filtersExpanded && (
+            <div className="space-y-6 border-t border-gray-200 p-4">
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700" htmlFor="year-filter">
@@ -860,238 +936,252 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                   </button>
                 </div>
               </div>
-            )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-3">
-              <div className="flex flex-wrap gap-2">
-                {natureTabs.map((tab) => (
-                  <button
-                    key={tab.value}
-                    type="button"
-                    onClick={() => updateFilters({ nature: tab.value })}
-                    className={`rounded-md border px-3 py-2 text-sm font-medium transition ${
-                      filters.nature === tab.value
-                        ? "border-indigo-500 bg-indigo-600 text-white shadow"
-                        : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-                    }`}
-                  >
-                    {t(tab.labelKey)}
-                  </button>
-                ))}
+              <div className="border-t border-gray-200 pt-3">
+                <div className="flex flex-wrap gap-2">
+                  {natureTabs.map((tab) => (
+                    <button
+                      key={tab.value}
+                      type="button"
+                      onClick={() => updateFilters({ nature: tab.value })}
+                      className={`rounded-md border px-3 py-2 text-sm font-medium transition ${
+                        filters.nature === tab.value
+                          ? "border-indigo-500 bg-indigo-600 text-white shadow"
+                          : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      {t(tab.labelKey)}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <DeleteSelectedButton selectedIds={selectedIdsArray} onDeleted={clearSelection} />
-          {selectedIdsArray.length > 0 && (
-            <button
-              type="button"
-              onClick={handleDeselectAll}
-              className="inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
-            >
-              {t("transactions.actions.deselect")}
-            </button>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={toggleCustomization}
-            className={`inline-flex items-center gap-2 rounded border px-3 py-2 text-sm font-medium transition ${
-              isCustomizingTable
-                ? "border-indigo-500 bg-indigo-600 text-white shadow"
-                : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            {isCustomizingTable
-              ? t("transactions.table.doneCustomizing")
-              : t("transactions.table.customize")}
-          </button>
-          {isCustomizingTable && (
-            <button
-              type="button"
-              onClick={handleResetLayout}
-              className="inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
-            >
-              {t("transactions.table.resetLayout")}
-            </button>
+
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+          {errorMessage && (
+            <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{errorMessage}</div>
           )}
-          <label className="flex items-center gap-2 text-sm text-gray-600">
-            <input
-              type="checkbox"
-              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-              checked={showSelectedOnly}
-              onChange={(event) => setShowSelectedOnly(event.target.checked)}
-            />
-            {t("transactions.filters.showOnlySelected")}
-          </label>
-        </div>
-      </div>
-
-      {isCustomizingTable && (
-        <div className="bg-indigo-50 px-4 py-2 text-xs font-medium text-indigo-700">
-          {t("transactions.table.customizeHint")}
-        </div>
-      )}
-
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-          <thead className="bg-gray-100">
-            <tr className="border-b border-gray-200">
-              <th className="px-4 py-3 text-left">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Tooltip label={t("transactions.actions.addTooltip")}>
+                <Link
+                  href="/transactions/add"
+                  className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+                >
+                  {t("transactions.addButton")}
+                </Link>
+              </Tooltip>
+              <DeleteSelectedButton selectedIds={selectedIdsArray} onDeleted={clearSelection} />
+              {selectedIdsArray.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleDeselectAll}
+                  className="inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
+                >
+                  {t("transactions.actions.deselect")}
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleCustomization}
+                className={`inline-flex items-center gap-2 rounded border px-3 py-2 text-sm font-medium transition ${
+                  isCustomizingTable
+                    ? "border-indigo-500 bg-indigo-600 text-white shadow"
+                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                {isCustomizingTable
+                  ? t("transactions.table.doneCustomizing")
+                  : t("transactions.table.customize")}
+              </button>
+              {isCustomizingTable && (
+                <button
+                  type="button"
+                  onClick={handleResetLayout}
+                  className="inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
+                >
+                  {t("transactions.table.resetLayout")}
+                </button>
+              )}
+              <label className="flex items-center gap-2 text-sm text-gray-600">
                 <input
                   type="checkbox"
                   className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                  aria-label={t("transactions.filters.selectAll")}
-                  checked={allVisibleSelected && visibleTransactions.length > 0}
-                  onChange={handleSelectAll}
+                  checked={showSelectedOnly}
+                  onChange={(event) => setShowSelectedOnly(event.target.checked)}
                 />
-              </th>
-              {orderedColumns.map((column) => {
-                const width = getColumnWidth(column);
-                return (
-                  <th
-                    key={column.id}
-                    className={`px-4 py-3 text-left font-medium text-gray-700 ${
-                      isCustomizingTable ? "cursor-move select-none" : ""
-                    }`}
-                    style={{ width, minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
-                    draggable={isCustomizingTable}
-                    onDragStart={(event) => handleDragStart(event, column.id)}
-                    onDragOver={handleDragOver}
-                    onDrop={(event) => handleDrop(event, column.id)}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className={`flex-1 ${column.align === "right" ? "text-right" : ""}`}>
-                        {column.label}
-                      </span>
-                      {isCustomizingTable && (
-                        <span
-                          role="separator"
-                          onMouseDown={(event) => handleResizeStart(event, column.id)}
-                          className="h-5 w-1 cursor-col-resize rounded bg-indigo-200"
-                        />
-                      )}
-                    </div>
-                  </th>
-                );
-              })}
-              <th className="whitespace-nowrap px-4 py-3 text-right font-medium text-gray-700">
-                {t("common.actions")}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibleTransactions.map((transaction) => {
-              const isSelected = selectedIds.has(transaction.id);
+                {t("transactions.filters.showOnlySelected")}
+              </label>
+            </div>
+          </div>
 
-              return (
-                <tr
-                  key={transaction.id}
-                  className={`border-b border-gray-200 ${isSelected ? "bg-indigo-50" : "bg-white"}`}
-                >
-                  <td className="px-4 py-3">
+          {isCustomizingTable && (
+            <div className="bg-indigo-50 px-4 py-2 text-xs font-medium text-indigo-700">
+              {t("transactions.table.customizeHint")}
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-100">
+                <tr className="border-b border-gray-200">
+                  <th className="px-4 py-3 text-left">
                     <input
                       type="checkbox"
                       className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                      checked={isSelected}
-                      onChange={() => toggleSelection(transaction.id)}
-                      aria-label={`Select transaction ${transaction.id}`}
+                      aria-label={t("transactions.filters.selectAll")}
+                      checked={allVisibleSelected && visibleTransactions.length > 0}
+                      onChange={handleSelectAll}
                     />
-                  </td>
+                  </th>
                   {orderedColumns.map((column) => {
                     const width = getColumnWidth(column);
-                    const alignClass = column.align === "right" ? "text-right" : "text-left";
                     return (
-                      <td
+                      <th
                         key={column.id}
-                        className={`px-4 py-3 ${alignClass}`}
+                        className={`px-4 py-3 text-left font-medium text-gray-700 ${
+                          isCustomizingTable ? "cursor-move select-none" : ""
+                        }`}
                         style={{ width, minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
+                        draggable={isCustomizingTable}
+                        onDragStart={(event) => handleDragStart(event, column.id)}
+                        onDragOver={handleDragOver}
+                        onDrop={(event) => handleDrop(event, column.id)}
+                        onDragEnd={handleDragEnd}
                       >
-                        {column.render(transaction)}
-                      </td>
+                        <div className="flex items-center gap-2">
+                          <span className={`flex-1 ${column.align === "right" ? "text-right" : ""}`}>
+                            {column.label}
+                          </span>
+                          <span
+                            role="separator"
+                            aria-hidden="true"
+                            onMouseDown={(event) => handleResizeStart(event, column.id)}
+                            className={`h-5 w-1 cursor-col-resize rounded transition-colors ${
+                              isCustomizingTable ? "bg-indigo-300" : "bg-gray-300 hover:bg-indigo-300"
+                            }`}
+                          />
+                        </div>
+                      </th>
                     );
                   })}
-                  <td className="whitespace-nowrap px-4 py-3 text-right">
-                    <ActionButtons transactionId={transaction.id} />
-                  </td>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-medium text-gray-700">
+                    {t("common.actions")}
+                  </th>
                 </tr>
-              );
-            })}
-            {selectedSummary && (
-              <tr className="bg-indigo-50 font-semibold text-indigo-900">
-                <td className="px-4 py-3" />
-                {orderedColumns.map((column, index) => {
-                  if (column.summary) {
-                    const alignClass = column.align === "right" ? "text-right" : "text-left";
-                    return (
-                      <td
-                        key={column.id}
-                        className={`px-4 py-3 ${alignClass}`}
-                        style={{ width: getColumnWidth(column), minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
-                      >
-                        {column.summary(selectedSummary)}
-                      </td>
-                    );
-                  }
-                  if (index === 0) {
-                    return (
-                      <td
-                        key={column.id}
-                        className="px-4 py-3"
-                        style={{ width: getColumnWidth(column), minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
-                      >
-                        {t("transactions.summary.selectedTotals")} ({selectedSummary.count})
-                      </td>
-                    );
-                  }
+              </thead>
+              <tbody>
+                {visibleTransactions.map((transaction) => {
+                  const isSelected = selectedIds.has(transaction.id);
+
                   return (
-                    <td
-                      key={column.id}
-                      className="px-4 py-3"
-                      style={{ width: getColumnWidth(column), minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
-                    />
+                    <tr
+                      key={transaction.id}
+                      className={`border-b border-gray-200 ${isSelected ? "bg-indigo-50" : "bg-white"}`}
+                    >
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          checked={isSelected}
+                          onChange={() => toggleSelection(transaction.id)}
+                          aria-label={`Select transaction ${transaction.id}`}
+                        />
+                      </td>
+                      {orderedColumns.map((column) => {
+                        const width = getColumnWidth(column);
+                        const alignClass = column.align === "right" ? "text-right" : "text-left";
+                        return (
+                          <td
+                            key={column.id}
+                            className={`px-4 py-3 ${alignClass}`}
+                            style={{ width, minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
+                          >
+                            {column.render(transaction)}
+                          </td>
+                        );
+                      })}
+                      <td className="whitespace-nowrap px-4 py-3 text-right">
+                        <ActionButtons transactionId={transaction.id} />
+                      </td>
+                    </tr>
                   );
                 })}
-                <td className="px-4 py-3" />
-              </tr>
-            )}
-            {visibleTransactions.length === 0 && (
-              <tr>
-                <td className="px-4 py-6 text-center text-gray-500" colSpan={orderedColumns.length + 2}>
-                  {t("transactions.emptyState")}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                {selectedSummary && (
+                  <tr className="bg-indigo-50 font-semibold text-indigo-900">
+                    <td className="px-4 py-3" />
+                    {orderedColumns.map((column, index) => {
+                      if (column.summary) {
+                        const alignClass = column.align === "right" ? "text-right" : "text-left";
+                        return (
+                          <td
+                            key={column.id}
+                            className={`px-4 py-3 ${alignClass}`}
+                            style={{ width: getColumnWidth(column), minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
+                          >
+                            {column.summary(selectedSummary)}
+                          </td>
+                        );
+                      }
+                      if (index === 0) {
+                        return (
+                          <td
+                            key={column.id}
+                            className="px-4 py-3"
+                            style={{ width: getColumnWidth(column), minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
+                          >
+                            {t("transactions.summary.selectedTotals")} ({selectedSummary.count})
+                          </td>
+                        );
+                      }
+                      return (
+                        <td
+                          key={column.id}
+                          className="px-4 py-3"
+                          style={{ width: getColumnWidth(column), minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
+                        />
+                      );
+                    })}
+                    <td className="px-4 py-3" />
+                  </tr>
+                )}
+                {visibleTransactions.length === 0 && (
+                  <tr>
+                    <td className="px-4 py-6 text-center text-gray-500" colSpan={orderedColumns.length + 2}>
+                      {t("transactions.emptyState")}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
 
-        <div className="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-600 md:flex-row md:items-center md:justify-between">
-          <span>
-            {t("transactions.pagination.pageLabel")} {filters.page} {t("transactions.pagination.of")} {totalPages}
-          </span>
-          <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => handlePageChange(filters.page - 1)}
-            disabled={filters.page <= 1}
-            className="rounded-md border border-gray-300 bg-white px-3 py-2 font-medium text-gray-700 shadow-sm transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {t("transactions.pagination.previous")}
-          </button>
-          <button
-            type="button"
-            onClick={() => handlePageChange(filters.page + 1)}
-            disabled={filters.page >= totalPages}
-            className="rounded-md border border-gray-300 bg-white px-3 py-2 font-medium text-gray-700 shadow-sm transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {t("transactions.pagination.next")}
-          </button>
+          <div className="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-600 md:flex-row md:items-center md:justify-between">
+            <span>
+              {t("transactions.pagination.pageLabel")} {filters.page} {t("transactions.pagination.of")} {totalPages}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handlePageChange(filters.page - 1)}
+                disabled={filters.page <= 1}
+                className="rounded-md border border-gray-300 bg-white px-3 py-2 font-medium text-gray-700 shadow-sm transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {t("transactions.pagination.previous")}
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePageChange(filters.page + 1)}
+                disabled={filters.page >= totalPages}
+                className="rounded-md border border-gray-300 bg-white px-3 py-2 font-medium text-gray-700 shadow-sm transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {t("transactions.pagination.next")}
+              </button>
+            </div>
           </div>
         </div>
       </div>

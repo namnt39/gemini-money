@@ -39,6 +39,21 @@ type MockTransactionSeed = {
   transactionNature: "IN" | "EX" | "TR";
 };
 
+type MockSubcategory = {
+  id: string;
+  name: string;
+  image_url: string | null;
+  transaction_nature: "EX" | "IN" | "TR" | "DE";
+  categories: { name: string; transaction_nature: "EX" | "IN" | "TR" | "DE" }[];
+};
+
+type MockPerson = {
+  id: string;
+  name: string;
+  image_url: string | null;
+  is_group: boolean;
+};
+
 const mockAccounts: DashboardAccount[] = [
   {
     id: "acc-cash-wallet",
@@ -174,6 +189,56 @@ const mockTransactions: MockTransactionSeed[] = [
   },
 ];
 
+const mockSubcategories: MockSubcategory[] = [
+  {
+    id: "sub-supermarket",
+    name: "Supermarket",
+    image_url: null,
+    transaction_nature: "EX",
+    categories: [{ name: "Groceries", transaction_nature: "EX" }],
+  },
+  {
+    id: "sub-salary",
+    name: "Salary",
+    image_url: null,
+    transaction_nature: "IN",
+    categories: [{ name: "Income", transaction_nature: "IN" }],
+  },
+  {
+    id: "sub-investments",
+    name: "Investments",
+    image_url: null,
+    transaction_nature: "TR",
+    categories: [{ name: "Transfers", transaction_nature: "TR" }],
+  },
+  {
+    id: "sub-rent",
+    name: "Rent",
+    image_url: null,
+    transaction_nature: "EX",
+    categories: [{ name: "Housing", transaction_nature: "EX" }],
+  },
+  {
+    id: "sub-coffee",
+    name: "Coffee",
+    image_url: null,
+    transaction_nature: "EX",
+    categories: [{ name: "Dining", transaction_nature: "EX" }],
+  },
+  {
+    id: "sub-freelance",
+    name: "Freelance",
+    image_url: null,
+    transaction_nature: "IN",
+    categories: [{ name: "Income", transaction_nature: "IN" }],
+  },
+];
+
+const mockPeople: MockPerson[] = [
+  { id: "person-minh", name: "Minh Nguyen", image_url: null, is_group: false },
+  { id: "person-team", name: "Project Team", image_url: null, is_group: true },
+];
+
 function cloneAccounts(): DashboardAccount[] {
   return mockAccounts.map((account) => ({ ...account }));
 }
@@ -284,6 +349,18 @@ export function getMockTransactions(
     rows: paginated,
     count: sorted.length,
     message: "Supabase connection unavailable. Displaying demo transactions.",
+  };
+}
+
+export function getMockTransactionFormData(): {
+  accounts: DashboardAccount[];
+  subcategories: MockSubcategory[];
+  people: MockPerson[];
+} {
+  return {
+    accounts: cloneAccounts(),
+    subcategories: mockSubcategories.map((subcategory) => ({ ...subcategory })),
+    people: mockPeople.map((person) => ({ ...person })),
   };
 }
 

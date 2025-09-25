@@ -1,8 +1,5 @@
-import Link from "next/link";
-
 import { supabase, supabaseConfigurationError } from "@/lib/supabaseClient";
 import { createTranslator } from "@/lib/i18n";
-import Tooltip from "@/components/Tooltip";
 import { getMockAccounts, getMockTransactions } from "@/data/mockData";
 
 import TransactionsView from "./TransactionsView";
@@ -277,16 +274,8 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-800">{t("transactions.title")}</h1>
-        <Tooltip label={t("transactions.actions.addTooltip")}>
-          <Link
-            href="/transactions/add"
-            className="bg-indigo-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-indigo-700"
-          >
-            {t("transactions.addButton")}
-          </Link>
-        </Tooltip>
       </div>
 
       <TransactionsView

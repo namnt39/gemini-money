@@ -50,7 +50,8 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
 
   if (error) {
     console.error("Unable to create category:", error);
-    return { success: false, message: "Unable to create a new category." };
+    const detail = error?.message ? `: ${error.message}` : "";
+    return { success: false, message: `Unable to create a new category${detail}.` };
   }
 
   const categoryId = createdCategory?.id;
@@ -73,7 +74,8 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
   if (subcategoryError) {
     console.error("Unable to create subcategory for category:", subcategoryError);
     await supabase.from("categories").delete().eq("id", categoryId);
-    return { success: false, message: "Unable to create a new category." };
+    const detail = subcategoryError?.message ? `: ${subcategoryError.message}` : "";
+    return { success: false, message: `Unable to create a new category${detail}.` };
   }
 
   const subcategoryId = createdSubcategory?.id;

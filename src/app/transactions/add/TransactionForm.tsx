@@ -375,8 +375,8 @@ export default function TransactionForm({
         const shouldPreserve = sessionStorage.getItem(PRESERVE_KEY) === "1";
         if (!shouldPreserve) {
           sessionStorage.removeItem(STORAGE_KEY);
+          sessionStorage.removeItem(PRESERVE_KEY);
         }
-        sessionStorage.removeItem(PRESERVE_KEY);
       }
     };
   }, []);
@@ -390,13 +390,6 @@ export default function TransactionForm({
           <TabButton title={t("transactionForm.tabs.transfer")} active={activeTab === "transfer"} color={tabColors.transfer} onClick={() => setActiveTab("transfer")} />
           <TabButton title={t("transactionForm.tabs.debt")} active={activeTab === "debt"} color={tabColors.debt} onClick={() => setActiveTab("debt")} />
         </div>
-        <button
-          type="button"
-          onClick={handleBack}
-          className="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 md:w-auto"
-        >
-          {t("common.back")}
-        </button>
       </div>
 
       <div className="space-y-6 bg-white p-6">
@@ -534,7 +527,15 @@ export default function TransactionForm({
           />
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex flex-col gap-3 border-t border-gray-200 pt-4 md:flex-row md:items-center md:justify-between">
+          <button
+            type="button"
+            onClick={handleBack}
+            className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+          >
+            <ArrowLeftIcon />
+            {t("common.back")}
+          </button>
           <button
             type="submit"
             disabled={isSubmitting}
@@ -547,3 +548,17 @@ export default function TransactionForm({
     </form>
   );
 }
+
+const ArrowLeftIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 20 20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    className="h-4 w-4"
+  >
+    <path d="M12.5 5 7.5 10l5 5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M12.5 10H4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);

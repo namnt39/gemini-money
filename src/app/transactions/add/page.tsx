@@ -1,6 +1,7 @@
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import { createTranslator } from "@/lib/i18n";
 import TransactionForm from "./TransactionForm";
+import { getMockTransactionFormData } from "@/data/mockData";
 
 export type Account = {
   id: string;
@@ -38,6 +39,34 @@ export type Person = {
 };
 
 async function getFormData() {
+  if (!isSupabaseConfigured || !supabase) {
+    const { accounts, subcategories, people } = getMockTransactionFormData();
+    return {
+      accounts: accounts.map((account) => ({
+        id: account.id,
+        name: account.name,
+        image_url: account.image_url,
+        type: account.type,
+        is_cashback_eligible: account.is_cashback_eligible,
+        cashback_percentage: account.cashback_percentage,
+        max_cashback_amount: account.max_cashback_amount,
+      })),
+      subcategories: subcategories.map((subcategory) => ({
+        id: subcategory.id,
+        name: subcategory.name,
+        image_url: subcategory.image_url,
+        transaction_nature: subcategory.transaction_nature,
+        categories: subcategory.categories,
+      })),
+      people: people.map((person) => ({
+        id: person.id,
+        name: person.name,
+        image_url: person.image_url,
+        is_group: person.is_group,
+      })),
+    };
+  }
+
   const accountsPromise = supabase
     .from("accounts")
     .select("id, name, image_url, type, is_cashback_eligible, cashback_percentage, max_cashback_amount");
