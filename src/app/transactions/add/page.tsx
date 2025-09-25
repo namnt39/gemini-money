@@ -38,7 +38,9 @@ export type Person = {
 };
 
 async function getFormData() {
-  const accountsPromise = supabase.from("accounts").select("id, name, image_url, type, is_cashback_eligible, cashback_percentage, max_cashback_amount");
+  const accountsPromise = supabase
+    .from("accounts")
+    .select("id, name, image_url, type, is_cashback_eligible, cashback_percentage, max_cashback_amount");
   const subcategoriesPromise = supabase
     .from("subcategories")
     .select("id, name, image_url, categories(name, transaction_nature)");
@@ -68,25 +70,44 @@ async function getFormData() {
   const typedSubcategories = (subcategories as Subcategory[]) || [];
   const typedCategories = (categories as CategoryRecord[] | null) || [];
 
-  const fallbackEntries = typedCategories.map((category) => ({
-    id: category.id,
-    name: category.name,
-    image_url: category.image_url ?? null,
-    transaction_nature: category.transaction_nature,
-    categories: null,
-  }));
+  const existingIds = new Set(typedSubcategories.map((item) => item.id));
+  const missingCategories = typedCategories.filter((category) => !existingIds.has(category.id));
 
-  const combinedSubcategories = [...typedSubcategories];
-  const existingIds = new Set(combinedSubcategories.map((item) => item.id));
-  for (const entry of fallbackEntries) {
-    if (!existingIds.has(entry.id)) {
-      combinedSubcategories.push(entry);
+  if (missingCategories.length > 0) {
+    const upsertPayload = missingCategories.map((category) => ({
+      category_id: category.id,
+      name: category.name,
+      image_url: category.image_url ?? null,
+    }));
+
+    const { error: createMissingError } = await supabase
+      .from("subcategories")
+      .upsert(upsertPayload, { onConflict: "category_id" });
+
+    if (createMissingError) {
+      console.error("Failed to ensure subcategories for categories:", createMissingError);
+    } else {
+      const { data: refreshedSubcategories, error: refreshError } = await supabase
+        .from("subcategories")
+        .select("id, name, image_url, categories(name, transaction_nature)");
+
+      if (!refreshError && refreshedSubcategories) {
+        return {
+          accounts: (accounts as Account[]) || [],
+          subcategories: refreshedSubcategories as Subcategory[],
+          people: (people as Person[]) || [],
+        };
+      }
+
+      if (refreshError) {
+        console.error("Failed to refresh subcategories:", refreshError);
+      }
     }
   }
 
   return {
     accounts: (accounts as Account[]) || [],
-    subcategories: combinedSubcategories,
+    subcategories: typedSubcategories,
     people: (people as Person[]) || [],
   };
 }
@@ -124,7 +145,7 @@ export default async function AddTransactionPage({ searchParams }: AddTransactio
   const t = createTranslator();
   const params = await resolveSearchParams(searchParams);
   const { accounts, subcategories, people } = await getFormData();
-  const createdCategoryId = typeof params.createdCategoryId === "string" ? params.createdCategoryId : undefined;
+  const createdSubcategoryId = typeof params.createdSubcategoryId === "string" ? params.createdSubcategoryId : undefined;
   const tabParam = typeof params.tab === "string" ? params.tab.toLowerCase() : undefined;
   const initialTab =
     tabParam === "expense" || tabParam === "income" || tabParam === "transfer" || tabParam === "debt"
@@ -141,7 +162,7 @@ export default async function AddTransactionPage({ searchParams }: AddTransactio
           subcategories={subcategories}
           people={people}
           returnTo={returnTo}
-          createdCategoryId={createdCategoryId}
+          createdSubcategoryId={createdSubcategoryId}
           initialTab={initialTab}
         />
       </div>

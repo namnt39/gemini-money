@@ -77,8 +77,8 @@ export default function CategoryForm({ returnTo, defaultNature }: CategoryFormPr
     alert(result.message);
     try {
       const targetUrl = new URL(returnTo, window.location.origin);
-      if (result.categoryId) {
-        targetUrl.searchParams.set("createdCategoryId", result.categoryId);
+      if (result.subcategoryId) {
+        targetUrl.searchParams.set("createdSubcategoryId", result.subcategoryId);
       }
       router.push(`${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
     } catch {

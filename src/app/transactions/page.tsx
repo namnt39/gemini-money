@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { supabase } from "@/lib/supabaseClient";
 import { createTranslator } from "@/lib/i18n";
+import Tooltip from "@/components/Tooltip";
 
 import TransactionsView from "./TransactionsView";
 
@@ -29,8 +30,10 @@ type TransactionQueryRow = {
   notes: string | null;
   from_account_id: string | null;
   to_account_id: string | null;
+  person_id: string | null;
   from_account?: { id: string | null; name: string | null; image_url: string | null } | null;
   to_account?: { id: string | null; name: string | null; image_url: string | null } | null;
+  person?: { id: string | null; name: string | null; image_url: string | null } | null;
   subcategories?: {
     id: string;
     name: string | null;
@@ -51,6 +54,7 @@ type TransactionListItem = {
   notes: string | null;
   fromAccount?: { id: string | null; name: string | null; image_url: string | null } | null;
   toAccount?: { id: string | null; name: string | null; image_url: string | null } | null;
+  person?: { id: string | null; name: string | null; image_url: string | null } | null;
   categoryName?: string | null;
   subcategoryName?: string | null;
   transactionNature?: string | null;
@@ -172,8 +176,10 @@ async function fetchTransactions(filters: TransactionFilters): Promise<{ rows: T
         notes,
         from_account_id,
         to_account_id,
+        person_id,
         from_account:accounts!from_account_id ( id, name, image_url ),
         to_account:accounts!to_account_id ( id, name, image_url ),
+        person:people!person_id ( id, name, image_url ),
         subcategories (
           id,
           name,
@@ -195,21 +201,27 @@ async function fetchTransactions(filters: TransactionFilters): Promise<{ rows: T
 
   if (filters.nature !== "all") {
     const natureCode = natureCodeMap[filters.nature];
-    query = query.eq("subcategories.categories.transaction_nature", natureCode);
+    if (filters.nature === "transfer") {
+      query = query.or(
+        `subcategories.categories.transaction_nature.eq.${natureCode},and(from_account_id.not.is.null,to_account_id.not.is.null)`
+      );
+    } else {
+      query = query.eq("subcategories.categories.transaction_nature", natureCode);
+    }
   }
 
   const startIndex = (filters.page - 1) * filters.pageSize;
   const endIndex = startIndex + filters.pageSize - 1;
   query = query.range(startIndex, endIndex);
 
-  const { data, count, error } = await query;
+  const { data, count, error } = await query.returns<TransactionQueryRow[]>();
 
   if (error) {
     console.error("Failed to fetch transactions:", error);
     return { rows: [], count: 0 };
   }
 
-  const rows = (data as TransactionQueryRow[]) || [];
+  const rows: TransactionQueryRow[] = data ?? [];
   const mapped: TransactionListItem[] = rows.map((row) => {
     const subcategory = row.subcategories;
     const rawCategories = subcategory?.categories;
@@ -226,6 +238,7 @@ async function fetchTransactions(filters: TransactionFilters): Promise<{ rows: T
       notes: row.notes,
       fromAccount: row.from_account ?? null,
       toAccount: row.to_account ?? null,
+      person: row.person ?? null,
       categoryName: parentCategory?.name ?? null,
       subcategoryName: subcategory?.name ?? null,
       transactionNature,
@@ -278,12 +291,14 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-800">{t("transactions.title")}</h1>
-        <Link
-          href="/transactions/add"
-          className="bg-indigo-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-indigo-700"
-        >
-          {t("transactions.addButton")}
-        </Link>
+        <Tooltip label={t("transactions.actions.addTooltip")}>
+          <Link
+            href="/transactions/add"
+            className="bg-indigo-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-indigo-700"
+          >
+            {t("transactions.addButton")}
+          </Link>
+        </Tooltip>
       </div>
 
       <TransactionsView
