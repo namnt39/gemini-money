@@ -20,7 +20,8 @@ type TransactionFormProps = {
   createdSubcategoryId?: string;
   initialTab?: Tab;
 };
-type CashbackInfo = { percent: number; amount: number };
+type CashbackInfo = { percent: number; amount: number; source: CashbackSource };
+type CashbackSource = "percent" | "amount" | null;
 
 type PersistedState = {
   activeTab: Tab;
@@ -33,6 +34,7 @@ type PersistedState = {
   date: string;
   cashbackPercent: number;
   cashbackAmount: number;
+  cashbackSource: CashbackSource;
   debtMode: DebtMode;
 };
 
@@ -104,6 +106,10 @@ export default function TransactionForm({
           date: parsed.date ?? today,
           cashbackPercent: parsed.cashbackPercent ?? 0,
           cashbackAmount: parsed.cashbackAmount ?? 0,
+          cashbackSource:
+            parsed.cashbackSource === "percent" || parsed.cashbackSource === "amount"
+              ? parsed.cashbackSource
+              : null,
           debtMode: parsed.debtMode === "collect" ? "collect" : "lend",
         };
       }
@@ -123,6 +129,7 @@ export default function TransactionForm({
   const defaultDate = persistedState?.date ?? new Date().toISOString().split("T")[0];
   const defaultCashbackPercent = persistedState?.cashbackPercent ?? 0;
   const defaultCashbackAmount = persistedState?.cashbackAmount ?? 0;
+  const defaultCashbackSource: CashbackSource = persistedState?.cashbackSource ?? null;
   const defaultDebtMode: DebtMode = persistedState?.debtMode ?? "lend";
 
   const [activeTab, setActiveTab] = useState<Tab>(defaultTabValue);
@@ -141,6 +148,7 @@ export default function TransactionForm({
   const [cashbackInfo, setCashbackInfo] = useState<CashbackInfo>({
     percent: defaultCashbackPercent,
     amount: defaultCashbackAmount,
+    source: defaultCashbackSource,
   });
 
   const initialSnapshotRef = useRef<PersistedState>({
@@ -154,6 +162,7 @@ export default function TransactionForm({
     date: defaultDate,
     cashbackPercent: defaultCashbackPercent,
     cashbackAmount: defaultCashbackAmount,
+    cashbackSource: defaultCashbackSource,
     debtMode: defaultDebtMode,
   });
 
@@ -166,7 +175,7 @@ export default function TransactionForm({
     } else {
       setShowCashback(false);
       setSelectedAccount(null);
-      setCashbackInfo({ percent: 0, amount: 0 });
+      setCashbackInfo({ percent: 0, amount: 0, source: null });
     }
   }, [fromAccountId, accounts]);
 
@@ -304,6 +313,7 @@ export default function TransactionForm({
       snapshot.date !== date ||
       snapshot.cashbackPercent !== cashbackInfo.percent ||
       snapshot.cashbackAmount !== cashbackInfo.amount ||
+      snapshot.cashbackSource !== cashbackInfo.source ||
       snapshot.debtMode !== debtMode
     );
   }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo, debtMode]);
@@ -338,6 +348,7 @@ export default function TransactionForm({
       date,
       cashbackPercent: cashbackInfo.percent,
       cashbackAmount: cashbackInfo.amount,
+      cashbackSource: cashbackInfo.source,
       debtMode,
     };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -356,6 +367,7 @@ export default function TransactionForm({
       ? {
           percent: Number.isFinite(cashbackInfo.percent) ? Number(cashbackInfo.percent) : 0,
           amount: Number.isFinite(cashbackInfo.amount) ? Number(cashbackInfo.amount) : 0,
+          source: cashbackInfo.source,
         }
       : null;
 

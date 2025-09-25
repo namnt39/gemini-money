@@ -25,6 +25,7 @@ const resources = {
       dashboard: "Dashboard",
       transactions: "Transactions",
       categories: "Categories",
+      people: "People",
       reports: "Reports",
     },
     dashboard: {
@@ -53,6 +54,7 @@ const resources = {
         notes: "Notes",
         amount: "Amount",
         borrower: "Borrower",
+        back: "Back",
         finalPrice: "Final Price",
         totalBack: "Total Back",
       },
@@ -79,6 +81,8 @@ const resources = {
         sectionTitle: "Search & Filter Condition",
         collapseButton: "Collapse search",
         expandButton: "Expand search",
+        personFilter: "Borrower",
+        unknownPerson: "Unknown",
       },
       emptyState: "No transactions found.",
       loadingMessage: "Loading transactions...",
@@ -109,6 +113,34 @@ const resources = {
         customizeHint:
           "Drag headers to reorder columns or use the handle to resize. Use Reset to restore the default layout.",
         resetConfirm: "Restore the default column layout?",
+      },
+    },
+    people: {
+      title: "People",
+      addButton: "+ Add Person",
+      addMockTooltip: "Add person (coming soon)",
+      addMockAlert: "Person creation will be available soon.",
+      views: {
+        list: "List view",
+        cards: "Card view",
+      },
+      summary: {
+        countLabel: "Total people",
+        transactionLabel: "Total transactions",
+      },
+      emptyState: "No people found for the selected filters.",
+      tableHeaders: {
+        person: "Person",
+        transactions: "Transactions",
+        totalAmount: "Total amount",
+        totalBack: "Total back",
+        finalPrice: "Final price",
+        lastActivity: "Last activity",
+        noActivity: "No activity",
+        viewTransactions: "View history",
+      },
+      actions: {
+        viewTransactions: "View transactions",
       },
     },
     transactionForm: {
@@ -229,6 +261,7 @@ const resources = {
       dashboard: "Dashboard",
       transactions: "Giao dịch",
       categories: "Danh mục",
+      people: "Người liên quan",
       reports: "Báo cáo",
     },
     dashboard: {
@@ -257,6 +290,7 @@ const resources = {
         notes: "Ghi chú",
         amount: "Số tiền",
         borrower: "Người mượn nợ",
+        back: "Hoàn trả",
         finalPrice: "Giá cuối",
         totalBack: "Tổng hoàn",
       },
@@ -283,6 +317,8 @@ const resources = {
         sectionTitle: "Điều kiện tìm kiếm & lọc",
         collapseButton: "Thu gọn tìm kiếm",
         expandButton: "Mở rộng tìm kiếm",
+        personFilter: "Người mượn",
+        unknownPerson: "Chưa rõ",
       },
       emptyState: "Chưa có giao dịch nào.",
       loadingMessage: "Đang tải giao dịch...",
@@ -313,6 +349,34 @@ const resources = {
         customizeHint:
           "Kéo tiêu đề để sắp xếp lại hoặc kéo chốt để đổi độ rộng. Dùng Đặt lại để trở về mặc định.",
         resetConfirm: "Khôi phục bố cục cột mặc định?",
+      },
+    },
+    people: {
+      title: "Người liên quan",
+      addButton: "+ Thêm người",
+      addMockTooltip: "Thêm người (sắp ra mắt)",
+      addMockAlert: "Tính năng thêm người sẽ sớm có mặt.",
+      views: {
+        list: "Dạng danh sách",
+        cards: "Dạng thẻ",
+      },
+      summary: {
+        countLabel: "Tổng số người",
+        transactionLabel: "Tổng số giao dịch",
+      },
+      emptyState: "Không tìm thấy người phù hợp với bộ lọc.",
+      tableHeaders: {
+        person: "Người",
+        transactions: "Số giao dịch",
+        totalAmount: "Tổng số tiền",
+        totalBack: "Tổng hoàn",
+        finalPrice: "Giá cuối",
+        lastActivity: "Hoạt động gần nhất",
+        noActivity: "Chưa có",
+        viewTransactions: "Xem lịch sử",
+      },
+      actions: {
+        viewTransactions: "Xem giao dịch",
       },
     },
     transactionForm: {

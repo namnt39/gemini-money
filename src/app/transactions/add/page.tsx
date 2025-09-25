@@ -102,49 +102,22 @@ async function getFormData() {
   const existingIds = new Set(typedSubcategories.map((item) => item.id));
   const missingCategories = typedCategories.filter((category) => !existingIds.has(category.id));
 
-  if (missingCategories.length > 0) {
-    const upsertPayload = missingCategories.map((category) => ({
-      category_id: category.id,
-      name: category.name,
-      image_url: category.image_url ?? null,
-    }));
-
-    const { error: createMissingError } = await supabase
-      .from("subcategories")
-      .upsert(upsertPayload, { onConflict: "category_id" });
-
-    if (createMissingError) {
-      const detail =
-        typeof createMissingError.message === "string" && createMissingError.message.trim().length > 0
-          ? createMissingError.message
-          : null;
-      if (detail) {
-        console.error("Failed to ensure subcategories for categories:", detail);
-      } else {
-        console.warn("Failed to ensure subcategories for categories.");
-      }
-    } else {
-      const { data: refreshedSubcategories, error: refreshError } = await supabase
-        .from("subcategories")
-        .select("id, name, image_url, categories(name, transaction_nature)");
-
-      if (!refreshError && refreshedSubcategories) {
-        return {
-          accounts: (accounts as Account[]) || [],
-          subcategories: refreshedSubcategories as Subcategory[],
-          people: (people as Person[]) || [],
-        };
-      }
-
-      if (refreshError) {
-        console.error("Failed to refresh subcategories:", refreshError);
-      }
-    }
-  }
+  const synthesizedSubcategories = missingCategories.map((category) => ({
+    id: category.id,
+    name: category.name,
+    image_url: category.image_url ?? null,
+    transaction_nature: category.transaction_nature,
+    categories: [
+      {
+        name: category.name,
+        transaction_nature: category.transaction_nature,
+      },
+    ],
+  }));
 
   return {
     accounts: (accounts as Account[]) || [],
-    subcategories: typedSubcategories,
+    subcategories: [...typedSubcategories, ...synthesizedSubcategories],
     people: (people as Person[]) || [],
   };
 }

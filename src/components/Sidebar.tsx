@@ -9,7 +9,12 @@ import { createTranslator } from "@/lib/i18n";
 
 type NavItem = {
   href: string;
-  labelKey: "sidebar.dashboard" | "sidebar.transactions" | "sidebar.categories" | "sidebar.reports";
+  labelKey:
+    | "sidebar.dashboard"
+    | "sidebar.transactions"
+    | "sidebar.categories"
+    | "sidebar.people"
+    | "sidebar.reports";
   disabled?: boolean;
   matchExact?: boolean;
 };
@@ -18,6 +23,7 @@ const navItems: NavItem[] = [
   { href: "/", labelKey: "sidebar.dashboard", matchExact: true },
   { href: "/transactions", labelKey: "sidebar.transactions" },
   { href: "/categories", labelKey: "sidebar.categories" },
+  { href: "/people", labelKey: "sidebar.people" },
   { href: "/reports", labelKey: "sidebar.reports", disabled: true },
 ];
 
