@@ -16,20 +16,31 @@ const normalizeReturnPath = (value: string | string[] | undefined) => {
   }
 };
 
-type AddCategoryPageProps = {
-  searchParams?: Record<string, string | string[] | undefined>;
+const resolveSearchParams = async (
+  input?:
+    | Record<string, string | string[] | undefined>
+    | Promise<Record<string, string | string[] | undefined>>
+) => {
+  if (!input) return {} as Record<string, string | string[] | undefined>;
+  return input instanceof Promise ? await input : input;
 };
 
-export default function AddCategoryPage({ searchParams }: AddCategoryPageProps) {
-  const params = searchParams ?? {};
+type AddCategoryPageProps = {
+  searchParams?:
+    | Record<string, string | string[] | undefined>
+    | Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AddCategoryPage({ searchParams }: AddCategoryPageProps) {
+  const params = await resolveSearchParams(searchParams);
   const returnTo = normalizeReturnPath(params.returnTo);
   const defaultNature = typeof params.defaultNature === "string" ? params.defaultNature : undefined;
   const t = createTranslator();
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">{t("categoryForm.title")}</h1>
-      <div className="bg-white rounded-lg shadow-md p-6">
+      <h1 className="mb-6 text-3xl font-bold text-gray-800">{t("categoryForm.title")}</h1>
+      <div className="rounded-lg bg-white p-6 shadow-md">
         <CategoryForm returnTo={returnTo} defaultNature={defaultNature} />
       </div>
     </div>
