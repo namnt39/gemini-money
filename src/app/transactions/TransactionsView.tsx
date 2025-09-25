@@ -17,6 +17,7 @@ type TransactionsViewProps = {
   totalCount: number;
   accounts: AccountRecord[];
   filters: TransactionFilters;
+  errorMessage?: string;
 };
 
 type NatureTab = {
@@ -239,7 +240,7 @@ function DeleteSelectedButton({ selectedIds, onDeleted }: DeleteSelectedButtonPr
   );
 }
 
-export default function TransactionsView({ transactions, totalCount, accounts, filters }: TransactionsViewProps) {
+export default function TransactionsView({ transactions, totalCount, accounts, filters, errorMessage }: TransactionsViewProps) {
   const t = createTranslator();
   const router = useRouter();
   const pathname = usePathname();
@@ -431,13 +432,15 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
       return prev;
     });
     setColumnWidths((prev) => {
+      let didMutate = false;
       const next = { ...prev };
       Object.keys(next).forEach((key) => {
         if (!availableIds.includes(key as DataColumnId)) {
           delete next[key as DataColumnId];
+          didMutate = true;
         }
       });
-      return next;
+      return didMutate ? next : prev;
     });
   }, [dataColumns]);
 
@@ -721,6 +724,11 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
       )}
 
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+        {errorMessage && (
+          <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            {errorMessage}
+          </div>
+        )}
         <div className="border-b border-gray-200 bg-gray-50">
           <div className="space-y-6 p-4">
             <div className="flex justify-end">
