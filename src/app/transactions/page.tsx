@@ -1,6 +1,7 @@
 import { supabase, supabaseConfigurationError } from "@/lib/supabaseClient";
 import { createTranslator } from "@/lib/i18n";
 import { getMockAccounts, getMockTransactions } from "@/data/mockData";
+import { getDatabaseNatureCandidates, normalizeTransactionNature } from "@/lib/transactionNature";
 
 import TransactionsView from "./TransactionsView";
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS, natureCodeMap } from "./constants";
@@ -21,7 +22,6 @@ type TransactionQueryRow = {
   final_price: number | null;
   cashback_percent: number | null;
   cashback_amount: number | null;
-  cashback_source: string | null;
   notes: string | null;
   from_account_id: string | null;
   to_account_id: string | null;
@@ -151,7 +151,6 @@ async function fetchTransactions(
         final_price,
         cashback_percent,
         cashback_amount,
-        cashback_source,
         notes,
         from_account_id,
         to_account_id,
@@ -180,12 +179,12 @@ async function fetchTransactions(
 
   if (filters.nature !== "all") {
     const natureCode = natureCodeMap[filters.nature];
+    const candidates = getDatabaseNatureCandidates(natureCode);
+    if (candidates.length > 0) {
+      query = query.in("subcategories.categories.transaction_nature", candidates);
+    }
     if (filters.nature === "transfer") {
-      query = query.or(
-        `subcategories.categories.transaction_nature.eq.${natureCode},and(from_account_id.not.is.null,to_account_id.not.is.null)`
-      );
-    } else {
-      query = query.eq("subcategories.categories.transaction_nature", natureCode);
+      query = query.not("from_account_id", "is", null).not("to_account_id", "is", null);
     }
   }
 
@@ -226,7 +225,7 @@ async function fetchTransactions(
     const subcategory = row.subcategories;
     const rawCategories = subcategory?.categories;
     const parentCategory = Array.isArray(rawCategories) ? rawCategories[0] : rawCategories ?? null;
-    const transactionNature = parentCategory?.transaction_nature ?? null;
+    const transactionNature = normalizeTransactionNature(parentCategory?.transaction_nature ?? null) ?? null;
 
     return {
       id: row.id,
@@ -236,9 +235,11 @@ async function fetchTransactions(
       cashbackPercent: row.cashback_percent ?? null,
       cashbackAmount: row.cashback_amount ?? null,
       cashbackSource:
-        row.cashback_source === "percent" || row.cashback_source === "amount"
-          ? (row.cashback_source as "percent" | "amount")
-          : null,
+        row.cashback_percent != null && !Number.isNaN(row.cashback_percent)
+          ? "percent"
+          : row.cashback_amount != null && !Number.isNaN(row.cashback_amount)
+            ? "amount"
+            : null,
       notes: row.notes,
       fromAccount: row.from_account ?? null,
       toAccount: row.to_account ?? null,

@@ -1,22 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import Tooltip from "@/components/Tooltip";
 import RemoteImage from "@/components/RemoteImage";
+import { useAppShell } from "@/components/AppShellProvider";
 import { createTranslator } from "@/lib/i18n";
+import { normalizeTransactionNature } from "@/lib/transactionNature";
 
 import type { CategoryRecord } from "./page";
+import { deleteCategory } from "./actions";
 
-type NatureFilter = "all" | "EX" | "IN" | "TR" | "DE";
+type NatureFilter = "all" | "EX" | "IN" | "TF" | "DE";
 
 type CategoriesViewProps = {
   categories: CategoryRecord[];
   errorMessage?: string;
 };
 
-const natureFilters: NatureFilter[] = ["all", "EX", "IN", "TR", "DE"];
+const natureFilters: NatureFilter[] = ["all", "EX", "IN", "TF", "DE"];
 
 const PencilIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
@@ -39,9 +43,32 @@ const TrashIcon = () => (
   </svg>
 );
 
+const naturePalette: Record<NatureFilter, { active: string; inactive: string }> = {
+  all: {
+    active: "border-slate-900 bg-slate-900 text-white shadow",
+    inactive: "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+  },
+  EX: {
+    active: "border-rose-600 bg-rose-500 text-white shadow",
+    inactive: "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100",
+  },
+  IN: {
+    active: "border-emerald-600 bg-emerald-500 text-white shadow",
+    inactive: "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+  },
+  TF: {
+    active: "border-sky-600 bg-sky-500 text-white shadow",
+    inactive: "border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100",
+  },
+  DE: {
+    active: "border-amber-600 bg-amber-500 text-white shadow",
+    inactive: "border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100",
+  },
+};
+
 const resolveNature = (category: CategoryRecord) => {
   const raw = category.transaction_nature ?? category.categories?.transaction_nature ?? undefined;
-  return raw ? raw.toUpperCase() : undefined;
+  return normalizeTransactionNature(raw ?? null) ?? undefined;
 };
 
 const getInitials = (value: string) => {
@@ -56,9 +83,14 @@ const getInitials = (value: string) => {
 
 export default function CategoriesView({ categories, errorMessage }: CategoriesViewProps) {
   const t = createTranslator();
+  const router = useRouter();
+  const { showSuccess } = useAppShell();
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [natureFilter, setNatureFilter] = useState<NatureFilter>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const filteredCategories = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -73,6 +105,11 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
       return category.name.toLowerCase().includes(normalizedSearch);
     });
   }, [categories, natureFilter, searchTerm]);
+
+  const handleSearchClear = useCallback(() => {
+    setSearchTerm("");
+    searchInputRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     setSelectedIds((prev) => {
@@ -115,12 +152,51 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
     });
   }, []);
 
+  const handleDelete = useCallback(
+    async (record: CategoryRecord) => {
+      const shouldDelete = confirm(t("categories.actions.deleteConfirm"));
+      if (!shouldDelete) {
+        return;
+      }
+
+      setActionError(null);
+      setDeletingId(record.id);
+
+      try {
+        const result = await deleteCategory({
+          categoryId: record.categoryId,
+          subcategoryId: record.subcategoryId ?? undefined,
+        });
+
+        if (!result.success) {
+          setActionError(result.message || t("categories.actions.deleteError"));
+          return;
+        }
+
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(record.id);
+          return next;
+        });
+
+        showSuccess(t("categories.actions.deleteSuccess"));
+        router.refresh();
+      } catch (error) {
+        console.error("Unable to delete category:", error);
+        setActionError(t("categories.actions.deleteError"));
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [router, showSuccess, t]
+  );
+
   const natureLabels = useMemo(() => {
     return {
       all: t("categories.filters.allTypes"),
       EX: t("categories.nature.EX"),
       IN: t("categories.nature.IN"),
-      TR: t("categories.nature.TR"),
+      TF: t("categories.nature.TF"),
       DE: t("categories.nature.DE"),
     } satisfies Record<NatureFilter, string>;
   }, [t]);
@@ -128,7 +204,11 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
   const resolveNatureLabel = useCallback(
     (category: CategoryRecord) => {
       const nature = resolveNature(category);
-      return nature ? natureLabels[(nature as NatureFilter) || "all"] ?? nature : natureLabels.all;
+      if (!nature) {
+        return natureLabels.all;
+      }
+      const key = nature as NatureFilter;
+      return natureLabels[key] ?? nature;
     },
     [natureLabels]
   );
@@ -139,6 +219,10 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
         <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{errorMessage}</div>
       ) : null}
 
+      {actionError ? (
+        <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{actionError}</div>
+      ) : null}
+
       <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-col gap-2">
@@ -146,39 +230,56 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
               {t("categories.filters.typeLabel")}
             </span>
             <div className="flex flex-wrap gap-2">
-              {natureFilters.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setNatureFilter(value)}
-                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                    natureFilter === value
-                      ? "bg-indigo-600 text-white shadow"
-                      : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  {natureLabels[value]}
-                </button>
-              ))}
+              {natureFilters.map((value) => {
+                const palette = naturePalette[value];
+                const isActive = natureFilter === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setNatureFilter(value)}
+                    className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${
+                      isActive ? palette.active : palette.inactive
+                    }`}
+                  >
+                    {natureLabels[value]}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder=""
-              aria-label={t("categories.filters.searchPlaceholder")}
-              className="w-full min-w-[220px] rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:max-w-xs"
-            />
-
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-start sm:gap-4">
             <Link
               href="/categories/add"
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
             >
               {t("categories.addButton")}
             </Link>
+
+            <div className="w-full sm:max-w-xs">
+              <div className="relative">
+                <input
+                  ref={searchInputRef}
+                  type="search"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder={t("common.searchPlaceholder")}
+                  aria-label={t("categories.filters.searchPlaceholder")}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 pr-24 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
+                {searchTerm ? (
+                  <button
+                    type="button"
+                    onClick={handleSearchClear}
+                    className="absolute inset-y-1.5 right-2 inline-flex items-center rounded-md border border-transparent px-2 text-xs font-semibold uppercase tracking-wide text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
+                    aria-label={t("common.clear")}
+                  >
+                    {t("common.clear")}
+                  </button>
+                ) : null}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -248,14 +349,20 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
                           <PencilIcon />
                         </button>
                       </Tooltip>
-                      <Tooltip label={t("categories.actions.deleteTooltip")}> 
+                      <Tooltip label={t("categories.actions.deleteTooltip")}>
                         <button
                           type="button"
+                          onClick={() => handleDelete(category)}
                           className="rounded border border-gray-300 bg-white p-2 text-red-500 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
                           aria-label={t("categories.actions.deleteTooltip")}
-                          disabled
+                          aria-busy={deletingId === category.id}
+                          disabled={deletingId === category.id}
                         >
-                          <TrashIcon />
+                          {deletingId === category.id ? (
+                            <span className="block h-4 w-4 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
+                          ) : (
+                            <TrashIcon />
+                          )}
                         </button>
                       </Tooltip>
                     </div>

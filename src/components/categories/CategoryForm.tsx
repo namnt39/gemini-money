@@ -6,12 +6,13 @@ import { useRouter } from "next/navigation";
 import { createCategory, TransactionNature } from "@/app/categories/actions";
 import { useAppShell } from "@/components/AppShellProvider";
 import { createTranslator, TranslationKey } from "@/lib/i18n";
+import { normalizeTransactionNature } from "@/lib/transactionNature";
 
-const natureValues: TransactionNature[] = ["EX", "IN", "TR", "DE"];
+const natureValues: TransactionNature[] = ["EX", "IN", "TF", "DE"];
 const natureTranslationKeys: Record<TransactionNature, TranslationKey> = {
   EX: "categories.nature.EX",
   IN: "categories.nature.IN",
-  TR: "categories.nature.TR",
+  TF: "categories.nature.TF",
   DE: "categories.nature.DE",
 };
 
@@ -21,8 +22,7 @@ type CategoryFormProps = {
 };
 
 const getInitialNature = (defaultNature?: string): TransactionNature => {
-  const normalized = (defaultNature || "").toUpperCase();
-  return natureValues.find((value) => value === normalized) ?? "EX";
+  return normalizeTransactionNature(defaultNature ?? null) ?? "EX";
 };
 
 export default function CategoryForm({ returnTo, defaultNature }: CategoryFormProps) {

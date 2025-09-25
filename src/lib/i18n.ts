@@ -17,6 +17,7 @@ const resources = {
       amount: "Amount",
       date: "Date",
       searchPlaceholder: "Search...",
+      clear: "Clear",
       noData: "No data available.",
       actions: "Actions",
       requiredIndicator: "*",
@@ -39,6 +40,9 @@ const resources = {
       name: "Account Name",
       type: "Type",
       creditLimit: "Credit Limit",
+      cashback: "Cashback",
+      created: "Opened",
+      cashbackNotEligible: "Not eligible",
       notAvailable: "N/A",
     },
     transactions: {
@@ -204,7 +208,7 @@ const resources = {
       nature: {
         EX: "Expenses",
         IN: "Income",
-        TR: "Transfers",
+        TF: "Transfers",
         DE: "Debt",
         unknown: "Unknown",
       },
@@ -218,6 +222,9 @@ const resources = {
       actions: {
         editTooltip: "Edit category",
         deleteTooltip: "Delete category",
+        deleteConfirm: "Delete this category?",
+        deleteSuccess: "Category deleted successfully.",
+        deleteError: "Unable to delete the selected category.",
       },
     },
     categoryForm: {
@@ -253,6 +260,7 @@ const resources = {
       amount: "Số tiền",
       date: "Ngày",
       searchPlaceholder: "Tìm kiếm...",
+      clear: "Xóa",
       noData: "Chưa có dữ liệu.",
       actions: "Thao tác",
       requiredIndicator: "*",
@@ -275,6 +283,9 @@ const resources = {
       name: "Tên Tài khoản",
       type: "Loại",
       creditLimit: "Hạn mức tín dụng",
+      cashback: "Hoàn tiền",
+      created: "Ngày mở",
+      cashbackNotEligible: "Không áp dụng",
       notAvailable: "Không có",
     },
     transactions: {
@@ -440,7 +451,7 @@ const resources = {
       nature: {
         EX: "Chi tiêu",
         IN: "Thu nhập",
-        TR: "Chuyển khoản",
+        TF: "Chuyển khoản",
         DE: "Công nợ",
         unknown: "Không xác định",
       },
@@ -454,6 +465,9 @@ const resources = {
       actions: {
         editTooltip: "Chỉnh sửa danh mục",
         deleteTooltip: "Xóa danh mục",
+        deleteConfirm: "Bạn có chắc muốn xóa danh mục này?",
+        deleteSuccess: "Đã xóa danh mục thành công.",
+        deleteError: "Không thể xóa danh mục đã chọn.",
       },
     },
     categoryForm: {

@@ -20,7 +20,7 @@ export type DashboardAccount = {
 export type DashboardTransactionRecord = {
   amount: number;
   date: string;
-  transactionNature: "IN" | "EX" | "TR";
+  transactionNature: "IN" | "EX" | "TF";
 };
 
 type MockTransactionSeed = {
@@ -37,15 +37,15 @@ type MockTransactionSeed = {
   person?: { id: string; name: string; image_url: string | null } | null;
   categoryName: string | null;
   subcategoryName: string | null;
-  transactionNature: "IN" | "EX" | "TR";
+  transactionNature: "IN" | "EX" | "TF";
 };
 
 type MockSubcategory = {
   id: string;
   name: string;
   image_url: string | null;
-  transaction_nature: "EX" | "IN" | "TR" | "DE";
-  categories: { name: string; transaction_nature: "EX" | "IN" | "TR" | "DE" }[];
+  transaction_nature: "EX" | "IN" | "TF" | "DE";
+  categories: { name: string; transaction_nature: "EX" | "IN" | "TF" | "DE" }[];
 };
 
 type MockPerson = {
@@ -158,7 +158,7 @@ const mockTransactions: MockTransactionSeed[] = [
     toAccountId: "acc-investment",
     categoryName: "Transfer",
     subcategoryName: "Investments",
-    transactionNature: "TR",
+    transactionNature: "TF",
   },
   {
     id: "tx-1005",
@@ -211,8 +211,8 @@ const mockSubcategories: MockSubcategory[] = [
     id: "sub-investments",
     name: "Investments",
     image_url: null,
-    transaction_nature: "TR",
-    categories: [{ name: "Transfers", transaction_nature: "TR" }],
+    transaction_nature: "TF",
+    categories: [{ name: "Transfers", transaction_nature: "TF" }],
   },
   {
     id: "sub-rent",
