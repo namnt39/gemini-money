@@ -15,6 +15,7 @@ type ActionResult = {
   success: boolean;
   message: string;
   categoryId?: string;
+  subcategoryId?: string;
 };
 
 const VALID_NATURES: TransactionNature[] = ["EX", "IN", "TR", "DE"];
@@ -41,16 +42,41 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
     image_url: normalizeImageUrl(input.imageUrl),
   };
 
-  const { data, error } = await supabase
+  const { data: createdCategory, error } = await supabase
     .from("categories")
     .insert(payload)
-    .select("id")
+    .select("id, image_url")
     .single();
 
   if (error) {
     console.error("Unable to create category:", error);
     return { success: false, message: "Unable to create a new category." };
   }
+
+  const categoryId = createdCategory?.id;
+  if (!categoryId) {
+    return { success: false, message: "Unable to create a new category." };
+  }
+
+  const subcategoryPayload = {
+    category_id: categoryId,
+    name,
+    image_url: createdCategory?.image_url ?? null,
+  };
+
+  const { data: createdSubcategory, error: subcategoryError } = await supabase
+    .from("subcategories")
+    .insert(subcategoryPayload)
+    .select("id")
+    .single();
+
+  if (subcategoryError) {
+    console.error("Unable to create subcategory for category:", subcategoryError);
+    await supabase.from("categories").delete().eq("id", categoryId);
+    return { success: false, message: "Unable to create a new category." };
+  }
+
+  const subcategoryId = createdSubcategory?.id;
 
   revalidatePath("/categories");
   revalidatePath("/transactions");
@@ -60,6 +86,7 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
   return {
     success: true,
     message: "Category created successfully!",
-    categoryId: data?.id,
+    categoryId,
+    subcategoryId,
   };
 }

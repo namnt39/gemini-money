@@ -146,15 +146,29 @@ export async function createTransaction(data: TransactionData) {
     }
     transactionToInsert.to_account_id = data.toAccountId;
     transactionToInsert.subcategory_id = data.subcategoryId;
+  } else if (data.activeTab === "transfer") {
+    if (!data.fromAccountId || !data.toAccountId || !data.subcategoryId) {
+      return { success: false, message: "Please choose both accounts and a category." };
+    }
+    if (data.fromAccountId === data.toAccountId) {
+      return { success: false, message: "Transfers require different accounts." };
+    }
+    transactionToInsert.from_account_id = data.fromAccountId;
+    transactionToInsert.to_account_id = data.toAccountId;
+    transactionToInsert.subcategory_id = data.subcategoryId;
   } else if (data.activeTab === "debt") {
     if (!data.fromAccountId || !data.personId) {
       return { success: false, message: "Please choose a person and account." };
     }
     transactionToInsert.from_account_id = data.fromAccountId;
     transactionToInsert.person_id = data.personId;
-  } else {
-    // Transfers are not supported yet; keep the current behaviour
-    return { success: false, message: "Transfers are not supported yet." };
+    if (data.subcategoryId) {
+      transactionToInsert.subcategory_id = data.subcategoryId;
+    }
+  }
+
+  if (!("person_id" in transactionToInsert)) {
+    transactionToInsert.person_id = data.personId || null;
   }
 
   // Insert transaction

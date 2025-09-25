@@ -15,7 +15,7 @@ type TransactionFormProps = {
   subcategories: Subcategory[];
   people: Person[];
   returnTo: string;
-  createdCategoryId?: string;
+  createdSubcategoryId?: string;
   initialTab?: Tab;
 };
 type CashbackInfo = { percent: number; amount: number };
@@ -34,6 +34,7 @@ type PersistedState = {
 };
 
 const STORAGE_KEY = "transactions:add-form-state";
+const PRESERVE_KEY = `${STORAGE_KEY}:preserve`;
 
 const tabColors: Record<Tab, string> = {
   expense: "bg-red-500",
@@ -69,7 +70,7 @@ export default function TransactionForm({
   subcategories,
   people,
   returnTo,
-  createdCategoryId,
+  createdSubcategoryId,
   initialTab,
 }: TransactionFormProps) {
   const t = createTranslator();
@@ -78,8 +79,14 @@ export default function TransactionForm({
   const persistedStateRef = useRef<PersistedState | null>(null);
   if (persistedStateRef.current === null && typeof window !== "undefined") {
     try {
+      const shouldPreserve = sessionStorage.getItem(PRESERVE_KEY) === "1";
       const raw = sessionStorage.getItem(STORAGE_KEY);
-      if (raw) {
+      if (!shouldPreserve) {
+        sessionStorage.removeItem(STORAGE_KEY);
+      } else {
+        sessionStorage.removeItem(PRESERVE_KEY);
+      }
+      if (raw && shouldPreserve) {
         persistedStateRef.current = JSON.parse(raw) as PersistedState;
       }
     } catch {
@@ -164,19 +171,19 @@ export default function TransactionForm({
   }, []);
 
   useEffect(() => {
-    if (!createdCategoryId) {
+    if (!createdSubcategoryId) {
       return;
     }
-    const newlyCreated = subcategories.find((item) => item.id === createdCategoryId);
+    const newlyCreated = subcategories.find((item) => item.id === createdSubcategoryId);
     if (!newlyCreated) {
       return;
     }
-    setSubcategoryId(createdCategoryId);
+    setSubcategoryId(createdSubcategoryId);
     const mappedTab = mapNatureToTab(getTransactionNature(newlyCreated));
     if (mappedTab && mappedTab !== activeTab) {
       setActiveTab(mappedTab);
     }
-  }, [createdCategoryId, subcategories, mapNatureToTab, getTransactionNature, activeTab]);
+  }, [createdSubcategoryId, subcategories, mapNatureToTab, getTransactionNature, activeTab]);
 
   const mapToOptions = useCallback(
     (item: {
@@ -242,6 +249,9 @@ export default function TransactionForm({
       transfer: "TR",
       debt: "DE",
     };
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(PRESERVE_KEY, "1");
+    }
     const params = new URLSearchParams({
       defaultNature: natureMap[activeTab],
     });
@@ -271,6 +281,10 @@ export default function TransactionForm({
       if (!shouldLeave) {
         return;
       }
+    }
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(PRESERVE_KEY);
     }
     router.push(returnTo);
     router.refresh();
@@ -337,6 +351,7 @@ export default function TransactionForm({
       setDate(today);
       setCashbackInfo({ percent: 0, amount: 0 });
       sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(PRESERVE_KEY);
       const resetSnapshot: PersistedState = {
         activeTab,
         amount: "",
@@ -353,6 +368,18 @@ export default function TransactionForm({
       persistedStateRef.current = resetSnapshot;
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined") {
+        const shouldPreserve = sessionStorage.getItem(PRESERVE_KEY) === "1";
+        if (!shouldPreserve) {
+          sessionStorage.removeItem(STORAGE_KEY);
+        }
+        sessionStorage.removeItem(PRESERVE_KEY);
+      }
+    };
+  }, []);
 
   return (
     <form onSubmit={handleSubmit} className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
