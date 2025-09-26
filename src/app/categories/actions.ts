@@ -39,10 +39,13 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
   const imageUrl = normalizeImageUrl(input.imageUrl);
 
   const candidates = getDatabaseNatureCandidates(transactionNature);
+  const fallbackCandidates =
+    transactionNature === "DE" ? getDatabaseNatureCandidates("EX") : [];
+  const attemptedCandidates = Array.from(new Set([...candidates, ...fallbackCandidates]));
   let createdCategory: { id: string; image_url: string | null; transaction_nature?: string | null } | null = null;
   let lastError: { message?: string } | null = null;
 
-  for (const candidate of candidates) {
+  for (const candidate of attemptedCandidates) {
     const attempt = await supabase
       .from("categories")
       .insert({
@@ -78,7 +81,10 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
     category_id: categoryId,
     name,
     image_url: createdCategory?.image_url ?? null,
-    transaction_nature: createdCategory?.transaction_nature ?? transactionNature,
+    transaction_nature:
+      transactionNature === "DE"
+        ? transactionNature
+        : createdCategory?.transaction_nature ?? transactionNature,
   };
 
   const { data: createdSubcategory, error: subcategoryError } = await supabase

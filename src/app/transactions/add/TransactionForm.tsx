@@ -41,7 +41,6 @@ type PersistedState = {
   cashbackSource: CashbackSource;
   debtMode: DebtMode;
   shopId: string;
-  shopTab: "shop" | "bank";
 };
 
 const STORAGE_KEY = "transactions:add-form-state";
@@ -54,6 +53,17 @@ const tabColors: Record<Tab, string> = {
   debt: "bg-yellow-500",
 };
 
+const debtModePalette: Record<DebtMode, { active: string; inactive: string }> = {
+  lend: {
+    active: "bg-rose-500 text-white shadow",
+    inactive: "border border-rose-300 bg-white text-rose-700 hover:bg-rose-50",
+  },
+  collect: {
+    active: "bg-emerald-500 text-white shadow",
+    inactive: "border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50",
+  },
+};
+
 type Shop = {
   id: string;
   name: string;
@@ -63,7 +73,12 @@ type Shop = {
 
 const mockShops: Shop[] = [
   { id: "shop-vinmart", name: "VinMart+", image_url: null, type: "Retail" },
-  { id: "shop-tiki", name: "Tiki Trading", image_url: null, type: "Online" },
+  {
+    id: "shop-tiki",
+    name: "Tiki Trading",
+    image_url: "/images/mock-shops/tiki.svg",
+    type: "Online",
+  },
   { id: "shop-coopmart", name: "Co.opmart", image_url: null, type: "Retail" },
   { id: "shop-lazada", name: "Lazada Mall", image_url: null, type: "Online" },
 ];
@@ -134,7 +149,6 @@ export default function TransactionForm({
               : null,
           debtMode: parsed.debtMode === "collect" ? "collect" : "lend",
           shopId: parsed.shopId ?? "",
-          shopTab: parsed.shopTab === "bank" ? "bank" : "shop",
         };
       }
     } catch {
@@ -156,7 +170,6 @@ export default function TransactionForm({
   const defaultCashbackSource: CashbackSource = persistedState?.cashbackSource ?? null;
   const defaultDebtMode: DebtMode = persistedState?.debtMode ?? "lend";
   const defaultShopId = persistedState?.shopId ?? "";
-  const defaultShopTab: "shop" | "bank" = persistedState?.shopTab ?? "shop";
 
   const [activeTab, setActiveTab] = useState<Tab>(defaultTabValue);
   const [amount, setAmount] = useState(defaultAmount);
@@ -169,7 +182,6 @@ export default function TransactionForm({
   const [date, setDate] = useState(defaultDate);
   const [debtMode, setDebtMode] = useState<DebtMode>(defaultDebtMode);
   const [shopId, setShopId] = useState(defaultShopId);
-  const [activeShopTab, setActiveShopTab] = useState<"shop" | "bank">(defaultShopTab);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
 
   const [showCashback, setShowCashback] = useState(false);
@@ -194,7 +206,6 @@ export default function TransactionForm({
     cashbackSource: defaultCashbackSource,
     debtMode: defaultDebtMode,
     shopId: defaultShopId,
-    shopTab: defaultShopTab,
   });
 
   // Determine whether to show cashback input based on the selected expense account
@@ -301,15 +312,10 @@ export default function TransactionForm({
   }, [activeTab, isShopCategory]);
 
   useEffect(() => {
-    if (!shouldShowShopSection) {
-      if (shopId) {
-        setShopId("");
-      }
-      if (activeShopTab !== "shop") {
-        setActiveShopTab("shop");
-      }
+    if (!shouldShowShopSection && shopId) {
+      setShopId("");
     }
-  }, [shouldShowShopSection, shopId, activeShopTab]);
+  }, [shouldShowShopSection, shopId]);
 
   useEffect(() => {
     if (activeTab !== "debt") {
@@ -393,10 +399,9 @@ export default function TransactionForm({
       snapshot.cashbackAmount !== cashbackInfo.amount ||
       snapshot.cashbackSource !== cashbackInfo.source ||
       snapshot.debtMode !== debtMode ||
-      snapshot.shopId !== shopId ||
-      snapshot.shopTab !== activeShopTab
+      snapshot.shopId !== shopId
     );
-  }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo, debtMode, shopId, activeShopTab]);
+  }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo, debtMode, shopId]);
 
   const handleBack = useCallback(() => {
     if (isDirty) {
@@ -433,11 +438,10 @@ export default function TransactionForm({
       cashbackSource: cashbackInfo.source,
       debtMode,
       shopId,
-      shopTab: activeShopTab,
     };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     persistedStateRef.current = payload;
-  }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo, debtMode, shopId, activeShopTab]);
+  }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo, debtMode, shopId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -651,11 +655,11 @@ export default function TransactionForm({
             />
 
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                 <span className="text-sm font-semibold uppercase tracking-wide text-amber-800">
                   {t("transactionForm.debtModes.label")}
                 </span>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-2 sm:gap-3">
                   {(["lend", "collect"] as DebtMode[]).map((mode) => (
                     <button
                       key={mode}
@@ -663,9 +667,10 @@ export default function TransactionForm({
                       onClick={() => setDebtMode(mode)}
                       className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                         debtMode === mode
-                          ? "bg-amber-500 text-white shadow"
-                          : "border border-amber-300 bg-white text-amber-700 hover:bg-amber-100"
+                          ? debtModePalette[mode].active
+                          : debtModePalette[mode].inactive
                       }`}
+                      aria-pressed={debtMode === mode}
                     >
                       {t(`transactionForm.debtModes.${mode}` as const)}
                     </button>
@@ -700,54 +705,27 @@ export default function TransactionForm({
 
         {shouldShowShopSection && (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm">
-            <div className="flex flex-col gap-2 border-b border-emerald-100 bg-emerald-100/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-emerald-800">
-                  {t("transactionForm.shop.sectionTitle")}
-                </p>
-                <p className="text-xs text-emerald-700">{t("transactionForm.shop.helper")}</p>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white p-1 shadow-sm">
-                {(["shop", "bank"] as const).map((tab) => {
-                  const isActive = activeShopTab === tab;
-                  return (
-                    <button
-                      key={tab}
-                      type="button"
-                      onClick={() => setActiveShopTab(tab)}
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                        isActive
-                          ? "bg-emerald-500 text-white shadow"
-                          : "border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50"
-                      }`}
-                    >
-                      {t(`transactionForm.shop.tabs.${tab}` as const)}
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="border-b border-emerald-100 bg-emerald-100/60 px-4 py-3">
+              <p className="text-sm font-semibold text-emerald-800">
+                {t("transactionForm.shop.sectionTitle")}
+              </p>
+              <p className="text-xs text-emerald-700">{t("transactionForm.shop.helper")}</p>
             </div>
-            <div className="space-y-4 p-4">
-              {activeShopTab === "shop" ? (
-                <CustomSelect
-                  label={t("transactionForm.shop.shopLabel")}
-                  value={shopId}
-                  onChange={(value) => {
-                    if (value === "__add_new__") {
-                      handleAddShop();
-                      return;
-                    }
-                    setShopId(value);
-                  }}
-                  options={shopOptions}
-                  onAddNew={handleAddShop}
-                  addNewLabel={t("transactionForm.shop.addShop")}
-                />
-              ) : (
-                <div className="rounded-md border border-dashed border-emerald-300 bg-white/80 p-4 text-sm text-emerald-700">
-                  {t("transactionForm.shop.bankComingSoon")}
-                </div>
-              )}
+            <div className="p-4">
+              <CustomSelect
+                label={t("transactionForm.shop.shopLabel")}
+                value={shopId}
+                onChange={(value) => {
+                  if (value === "__add_new__") {
+                    handleAddShop();
+                    return;
+                  }
+                  setShopId(value);
+                }}
+                options={shopOptions}
+                onAddNew={handleAddShop}
+                addNewLabel={t("transactionForm.shop.addShop")}
+              />
             </div>
           </div>
         )}

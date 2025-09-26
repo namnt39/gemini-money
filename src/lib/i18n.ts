@@ -197,15 +197,10 @@ const resources = {
         sameTransferAccount: "You cannot transfer between the same account.",
       },
       shop: {
-        sectionTitle: "Shop & bank details",
-        helper: "Connect a shop to keep track of where this transaction happens.",
-        tabs: {
-          shop: "Shop",
-          bank: "Bank",
-        },
+        sectionTitle: "Shop details",
+        helper: "Select the shop related to this transaction.",
         shopLabel: "Shop",
         addShop: "Add shop",
-        bankComingSoon: "Linking bank information for shops will be available soon.",
       },
     },
     amountInput: {
@@ -216,7 +211,7 @@ const resources = {
     },
     categories: {
       title: "Categories",
-      addButton: "+ Add New",
+      addButton: "Add New",
       tableHeaders: {
         icon: "Icon",
         name: "Category Name",
@@ -458,15 +453,10 @@ const resources = {
         sameTransferAccount: "Không thể chuyển khoản trong cùng một tài khoản.",
       },
       shop: {
-        sectionTitle: "Thông tin cửa hàng & ngân hàng",
-        helper: "Liên kết cửa hàng để quản lý giao dịch chính xác hơn.",
-        tabs: {
-          shop: "Cửa hàng",
-          bank: "Ngân hàng",
-        },
+        sectionTitle: "Thông tin cửa hàng",
+        helper: "Chọn cửa hàng liên quan đến giao dịch này.",
         shopLabel: "Chọn cửa hàng",
         addShop: "Thêm cửa hàng",
-        bankComingSoon: "Tính năng liên kết tài khoản ngân hàng sẽ sớm có mặt.",
       },
     },
     amountInput: {
@@ -477,7 +467,7 @@ const resources = {
     },
     categories: {
       title: "Danh mục",
-      addButton: "+ Thêm mới",
+      addButton: "Thêm mới",
       tableHeaders: {
         icon: "Biểu tượng",
         name: "Tên danh mục",
