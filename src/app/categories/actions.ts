@@ -1,6 +1,6 @@
 "use server";
 
-import { supabase } from "@/lib/supabaseClient";
+import { requireSupabaseClient, supabase } from "@/lib/supabaseClient";
 import { revalidatePath } from "next/cache";
 import {
   getDatabaseNatureCandidates,
@@ -30,6 +30,7 @@ const normalizeImageUrl = (value?: string | null) => {
 };
 
 export async function createCategory(input: CreateCategoryInput): Promise<ActionResult> {
+  const supabaseClient = supabase ?? requireSupabaseClient();
   const name = input.name.trim();
   if (!name) {
     return { success: false, message: "Please provide a category name." };
@@ -46,7 +47,7 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
   let lastError: { message?: string } | null = null;
 
   for (const candidate of attemptedCandidates) {
-    const attempt = await supabase
+    const attempt = await supabaseClient
       .from("categories")
       .insert({
         name,
@@ -87,7 +88,7 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
         : createdCategory?.transaction_nature ?? transactionNature,
   };
 
-  const { data: createdSubcategory, error: subcategoryError } = await supabase
+  const { data: createdSubcategory, error: subcategoryError } = await supabaseClient
     .from("subcategories")
     .insert(subcategoryPayload)
     .select("id")
@@ -95,7 +96,7 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
 
   if (subcategoryError) {
     console.error("Unable to create subcategory for category:", subcategoryError);
-    await supabase.from("categories").delete().eq("id", categoryId);
+    await supabaseClient.from("categories").delete().eq("id", categoryId);
     const detail = subcategoryError?.message ? `: ${subcategoryError.message}` : "";
     return { success: false, message: `Unable to create a new category${detail}.` };
   }
@@ -121,6 +122,7 @@ type DeleteCategoryInput = {
 };
 
 export async function deleteCategory(input: DeleteCategoryInput): Promise<ActionResult> {
+  const supabaseClient = supabase ?? requireSupabaseClient();
   const categoryId = input.categoryId?.trim();
   if (!categoryId) {
     return { success: false, message: "Invalid category identifier." };
@@ -129,7 +131,7 @@ export async function deleteCategory(input: DeleteCategoryInput): Promise<Action
   const subcategoryId = input.subcategoryId?.trim() || null;
 
   const { error: subcategoryError } = subcategoryId
-    ? await supabase.from("subcategories").delete().eq("id", subcategoryId)
+    ? await supabaseClient.from("subcategories").delete().eq("id", subcategoryId)
     : { error: null };
 
   if (subcategoryError) {
@@ -141,7 +143,7 @@ export async function deleteCategory(input: DeleteCategoryInput): Promise<Action
   let shouldDeleteCategory = !subcategoryId;
 
   if (subcategoryId) {
-    const { count, error: remainingError } = await supabase
+    const { count, error: remainingError } = await supabaseClient
       .from("subcategories")
       .select("id", { count: "exact", head: true })
       .eq("category_id", categoryId);
@@ -156,12 +158,18 @@ export async function deleteCategory(input: DeleteCategoryInput): Promise<Action
   }
 
   if (shouldDeleteCategory) {
-    const { error: cleanupError } = await supabase.from("subcategories").delete().eq("category_id", categoryId);
+    const { error: cleanupError } = await supabaseClient
+      .from("subcategories")
+      .delete()
+      .eq("category_id", categoryId);
     if (cleanupError) {
       console.warn("Unable to clean up subcategories for category:", cleanupError);
     }
 
-    const { error: categoryError } = await supabase.from("categories").delete().eq("id", categoryId);
+    const { error: categoryError } = await supabaseClient
+      .from("categories")
+      .delete()
+      .eq("id", categoryId);
     if (categoryError) {
       console.error("Unable to delete category:", categoryError);
       const detail = categoryError.message ? `: ${categoryError.message}` : "";
