@@ -592,20 +592,39 @@ function resolvePath(locale: Locale, path: string) {
   return current;
 }
 
-export function translate(path: TranslationKey, locale: Locale = DEFAULT_LOCALE): string {
+type TranslationValues = Record<string, string | number | boolean | null | undefined>;
+
+function interpolate(template: string, values?: TranslationValues) {
+  if (!values) {
+    return template;
+  }
+  return template.replace(/{{\s*(\w+)\s*}}/g, (match, key) => {
+    const value = values[key];
+    if (value === undefined || value === null) {
+      return match;
+    }
+    return String(value);
+  });
+}
+
+export function translate(
+  path: TranslationKey,
+  locale: Locale = DEFAULT_LOCALE,
+  values?: TranslationValues
+): string {
   const value = resolvePath(locale, path);
   if (typeof value === "string") {
-    return value;
+    return interpolate(value, values);
   }
   const fallback = resolvePath(DEFAULT_LOCALE, path);
   if (typeof fallback === "string") {
-    return fallback;
+    return interpolate(fallback, values);
   }
   return path;
 }
 
 export function createTranslator(locale: Locale = DEFAULT_LOCALE) {
-  return (path: TranslationKey) => translate(path, locale);
+  return (path: TranslationKey, values?: TranslationValues) => translate(path, locale, values);
 }
 
 export function isTranslationKey(path: string): path is TranslationKey {
