@@ -5,11 +5,12 @@ export const DEFAULT_LOCALE: Locale = "en";
 const resources = {
   en: {
     common: {
-      appName: "Gemini Money",
+      appName: "Money Flow",
       addNew: "Add New",
       add: "Add",
       cancel: "Cancel",
       save: "Save",
+      confirm: "Confirm",
       back: "Back",
       loading: "Saving...",
       loadingApp: "Loading...",
@@ -124,6 +125,9 @@ const resources = {
       addButton: "+ Add Person",
       addMockTooltip: "Add person (coming soon)",
       addMockAlert: "Person creation will be available soon.",
+      filters: {
+        peopleList: "People list",
+      },
       views: {
         list: "List view",
         cards: "Card view",
@@ -176,18 +180,32 @@ const resources = {
       },
       addAccount: "Add Account",
       addAccountPlaceholder: "Account creation is coming soon.",
+      addShop: "Add Shop",
+      addShopPlaceholder: "Shop creation is coming soon.",
       addCategory: {
         expense: "Add Expense Category",
         income: "Add Income Category",
         transfer: "Add Transfer Category",
         debt: "Add Debt Category",
       },
+      confirmLeaveTitle: "Leave this form?",
       confirmLeave: "Are you sure you want to go back? Unsaved changes will be lost.",
       hints: {
         transferSameAccount: "Avoid choosing the same account for both sides of a transfer.",
       },
       errors: {
         sameTransferAccount: "You cannot transfer between the same account.",
+      },
+      shop: {
+        sectionTitle: "Shop & bank details",
+        helper: "Connect a shop to keep track of where this transaction happens.",
+        tabs: {
+          shop: "Shop",
+          bank: "Bank",
+        },
+        shopLabel: "Shop",
+        addShop: "Add shop",
+        bankComingSoon: "Linking bank information for shops will be available soon.",
       },
     },
     amountInput: {
@@ -248,11 +266,12 @@ const resources = {
   },
   vi: {
     common: {
-      appName: "Gemini Money",
+      appName: "Money Flow",
       addNew: "Thêm mới",
       add: "Thêm",
       cancel: "Hủy",
       save: "Lưu",
+      confirm: "Xác nhận",
       back: "Quay lại",
       loading: "Đang lưu...",
       loadingApp: "Đang tải...",
@@ -367,6 +386,9 @@ const resources = {
       addButton: "+ Thêm người",
       addMockTooltip: "Thêm người (sắp ra mắt)",
       addMockAlert: "Tính năng thêm người sẽ sớm có mặt.",
+      filters: {
+        peopleList: "Danh sách người",
+      },
       views: {
         list: "Dạng danh sách",
         cards: "Dạng thẻ",
@@ -419,18 +441,32 @@ const resources = {
       },
       addAccount: "Thêm tài khoản",
       addAccountPlaceholder: "Tính năng thêm tài khoản sẽ sớm có mặt.",
+      addShop: "Thêm cửa hàng",
+      addShopPlaceholder: "Tính năng tạo cửa hàng sẽ sớm ra mắt.",
       addCategory: {
         expense: "Thêm danh mục Chi tiêu",
         income: "Thêm danh mục Thu nhập",
         transfer: "Thêm danh mục Chuyển khoản",
         debt: "Thêm danh mục Công nợ",
       },
+      confirmLeaveTitle: "Thoát khỏi biểu mẫu?",
       confirmLeave: "Bạn có chắc muốn quay lại? Thông tin chưa lưu sẽ bị mất.",
       hints: {
         transferSameAccount: "Hãy tránh chọn cùng một tài khoản cho hai chiều chuyển khoản.",
       },
       errors: {
         sameTransferAccount: "Không thể chuyển khoản trong cùng một tài khoản.",
+      },
+      shop: {
+        sectionTitle: "Thông tin cửa hàng & ngân hàng",
+        helper: "Liên kết cửa hàng để quản lý giao dịch chính xác hơn.",
+        tabs: {
+          shop: "Cửa hàng",
+          bank: "Ngân hàng",
+        },
+        shopLabel: "Chọn cửa hàng",
+        addShop: "Thêm cửa hàng",
+        bankComingSoon: "Tính năng liên kết tài khoản ngân hàng sẽ sớm có mặt.",
       },
     },
     amountInput: {

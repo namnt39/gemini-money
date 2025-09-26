@@ -55,7 +55,12 @@ export default function Sidebar() {
   return (
     <aside className="w-64 flex-shrink-0 border-r border-gray-200 bg-gray-900 text-white">
       <div className="px-6 py-8">
-        <h2 className="text-2xl font-bold tracking-tight">{t("common.appName")}</h2>
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500 text-xl font-bold text-white shadow-lg shadow-emerald-500/40">
+            ₫
+          </span>
+          <h2 className="text-2xl font-bold tracking-tight">{t("common.appName")}</h2>
+        </div>
       </div>
       <nav>
         <ul className="space-y-1 px-4 pb-6">

@@ -7,15 +7,15 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CustomSelect from "@/components/forms/CustomSelect";
 import Tooltip from "@/components/Tooltip";
 import RemoteImage from "@/components/RemoteImage";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { createTranslator } from "@/lib/i18n";
 
-import type { TransactionFilters, AccountRecord } from "@/app/transactions/types";
+import type { TransactionFilters } from "@/app/transactions/types";
 import type { PersonAggregate } from "./types";
 
 type PeopleViewProps = {
   people: PersonAggregate[];
   filters: TransactionFilters;
-  accounts: AccountRecord[];
   errorMessage?: string;
 };
 
@@ -112,7 +112,7 @@ const ViewToggle = ({
   );
 };
 
-export default function PeopleView({ people, filters, accounts, errorMessage }: PeopleViewProps) {
+export default function PeopleView({ people, filters, errorMessage }: PeopleViewProps) {
   const t = createTranslator();
   const router = useRouter();
   const pathname = usePathname();
@@ -123,6 +123,7 @@ export default function PeopleView({ people, filters, accounts, errorMessage }: 
   const [searchValue, setSearchValue] = useState(filters.searchTerm);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
   const [showLoading, setShowLoading] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -143,12 +144,13 @@ export default function PeopleView({ people, filters, accounts, errorMessage }: 
     setSearchValue(filters.searchTerm);
   }, [filters.searchTerm]);
 
-  const accountOptions = useMemo(() => {
-    return accounts.map((account) => ({
-      value: account.id,
-      label: account.name,
+  const peopleOptions = useMemo(() => {
+    return people.map((person) => ({
+      id: person.id,
+      name: person.name,
+      imageUrl: person.imageUrl ?? undefined,
     }));
-  }, [accounts]);
+  }, [people]);
 
   const updateFilters = useCallback(
     (updates: Record<string, string | undefined>) => {
@@ -218,24 +220,24 @@ export default function PeopleView({ people, filters, accounts, errorMessage }: 
       filters.year === defaultTemporalValues.year &&
       isMonthDefault &&
       isQuarterDefault &&
-      !filters.accountId &&
       !filters.personId &&
       filters.searchTerm.trim() === ""
     );
-  }, [defaultTemporalValues, filters.accountId, filters.month, filters.nature, filters.personId, filters.quarter, filters.searchTerm, filters.year]);
+  }, [defaultTemporalValues, filters.month, filters.nature, filters.personId, filters.quarter, filters.searchTerm, filters.year]);
 
   const handleReset = useCallback(() => {
     if (isResetDisabled) {
       return;
     }
-    const shouldReset = confirm(t("transactions.filters.resetConfirm"));
-    if (!shouldReset) {
-      return;
-    }
+    setShowResetDialog(true);
+  }, [isResetDisabled]);
+
+  const handleConfirmReset = useCallback(() => {
+    setShowResetDialog(false);
     startTransition(() => {
       router.push(pathname);
     });
-  }, [isResetDisabled, pathname, router, startTransition, t]);
+  }, [pathname, router, startTransition]);
 
   const activePerson = useMemo(() => {
     if (!filters.personId) {
@@ -342,10 +344,15 @@ export default function PeopleView({ people, filters, accounts, errorMessage }: 
                 <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                   <div className="flex flex-col gap-2 md:flex-1">
                     <CustomSelect
-                      label={t("transactions.filters.account")}
-                      value={filters.accountId}
-                      onChange={(value) => updateFilters({ accountId: value === "__add_new__" ? undefined : value })}
-                      options={accountOptions}
+                      label={t("people.filters.peopleList")}
+                      value={filters.personId ?? ""}
+                      onChange={(value) => {
+                        if (value === "__add_new__") {
+                          return;
+                        }
+                        updateFilters({ personId: value || undefined });
+                      }}
+                      options={peopleOptions}
                     />
                   </div>
                   <div className="flex flex-wrap items-center gap-3 md:justify-end">
@@ -605,6 +612,15 @@ export default function PeopleView({ people, filters, accounts, errorMessage }: 
           )}
         </div>
       </div>
+      <ConfirmDialog
+        open={showResetDialog}
+        title={t("transactions.filters.reset")}
+        description={t("transactions.filters.resetConfirm")}
+        cancelLabel={t("common.cancel")}
+        confirmLabel={t("common.confirm")}
+        onCancel={() => setShowResetDialog(false)}
+        onConfirm={handleConfirmReset}
+      />
     </div>
   );
 }

@@ -46,6 +46,7 @@ type MockSubcategory = {
   image_url: string | null;
   transaction_nature: "EX" | "IN" | "TF" | "DE";
   categories: { name: string; transaction_nature: "EX" | "IN" | "TF" | "DE" }[];
+  is_shop?: boolean;
 };
 
 type MockPerson = {
@@ -199,6 +200,7 @@ const mockSubcategories: MockSubcategory[] = [
     image_url: null,
     transaction_nature: "EX",
     categories: [{ name: "Groceries", transaction_nature: "EX" }],
+    is_shop: true,
   },
   {
     id: "sub-salary",
@@ -206,6 +208,7 @@ const mockSubcategories: MockSubcategory[] = [
     image_url: null,
     transaction_nature: "IN",
     categories: [{ name: "Income", transaction_nature: "IN" }],
+    is_shop: false,
   },
   {
     id: "sub-investments",
@@ -213,6 +216,7 @@ const mockSubcategories: MockSubcategory[] = [
     image_url: null,
     transaction_nature: "TF",
     categories: [{ name: "Transfers", transaction_nature: "TF" }],
+    is_shop: false,
   },
   {
     id: "sub-rent",
@@ -220,6 +224,7 @@ const mockSubcategories: MockSubcategory[] = [
     image_url: null,
     transaction_nature: "EX",
     categories: [{ name: "Housing", transaction_nature: "EX" }],
+    is_shop: false,
   },
   {
     id: "sub-coffee",
@@ -227,6 +232,7 @@ const mockSubcategories: MockSubcategory[] = [
     image_url: null,
     transaction_nature: "EX",
     categories: [{ name: "Dining", transaction_nature: "EX" }],
+    is_shop: true,
   },
   {
     id: "sub-freelance",
@@ -234,6 +240,7 @@ const mockSubcategories: MockSubcategory[] = [
     image_url: null,
     transaction_nature: "IN",
     categories: [{ name: "Income", transaction_nature: "IN" }],
+    is_shop: false,
   },
 ];
 

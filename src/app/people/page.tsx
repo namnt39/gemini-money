@@ -1,13 +1,12 @@
 import { supabase, supabaseConfigurationError } from "@/lib/supabaseClient";
 import { createTranslator } from "@/lib/i18n";
-import { getMockTransactions, getMockAccounts } from "@/data/mockData";
+import { getMockTransactions } from "@/data/mockData";
 import { getDatabaseNatureCandidates, normalizeTransactionNature } from "@/lib/transactionNature";
 
 import PeopleView from "./PeopleView";
 import { natureCodeMap } from "../transactions/constants";
 
 import type {
-  AccountRecord,
   TransactionFilters,
   TransactionListItem,
   MonthFilter,
@@ -305,27 +304,6 @@ async function fetchPeopleData(
   return { people: aggregated };
 }
 
-async function fetchAccounts(): Promise<{ accounts: AccountRecord[]; errorMessage?: string }> {
-  if (!supabase) {
-    const fallback = getMockAccounts();
-    const detail = supabaseConfigurationError?.message;
-    const message = detail ? `${fallback.message} (${detail})` : fallback.message;
-    return { accounts: fallback.accounts, errorMessage: message };
-  }
-
-  const { data, error } = await supabase
-    .from("accounts")
-    .select("id, name, image_url, type")
-    .order("name", { ascending: true });
-
-  if (error) {
-    const fallback = getMockAccounts();
-    return { accounts: fallback.accounts, errorMessage: fallback.message };
-  }
-
-  return { accounts: ((data as AccountRecord[]) ?? []) as AccountRecord[] };
-}
-
 type PeoplePageProps = {
   searchParams?: Record<string, string | string[] | undefined>;
 };
@@ -334,19 +312,14 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
   const t = createTranslator();
   const filters = sanitizeFilters(searchParams);
 
-  const [{ people, errorMessage: peopleError }, { accounts, errorMessage: accountsError }] = await Promise.all([
-    fetchPeopleData(filters),
-    fetchAccounts(),
-  ]);
-
-  const combinedError = peopleError || accountsError;
+  const { people, errorMessage } = await fetchPeopleData(filters);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-800">{t("people.title")}</h1>
       </div>
-      <PeopleView people={people} filters={filters} accounts={accounts} errorMessage={combinedError} />
+      <PeopleView people={people} filters={filters} errorMessage={errorMessage} />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import CashbackInput from "@/components/forms/CashbackInput";
 import { createTranslator } from "@/lib/i18n";
 import { normalizeTransactionNature, type TransactionNatureCode } from "@/lib/transactionNature";
 import { useAppShell } from "@/components/AppShellProvider";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 type Tab = "expense" | "income" | "transfer" | "debt";
 type DebtMode = "collect" | "lend";
@@ -37,6 +38,8 @@ type PersistedState = {
   cashbackAmount: number;
   cashbackSource: CashbackSource;
   debtMode: DebtMode;
+  shopId: string;
+  shopTab: "shop" | "bank";
 };
 
 const STORAGE_KEY = "transactions:add-form-state";
@@ -48,6 +51,20 @@ const tabColors: Record<Tab, string> = {
   transfer: "bg-blue-500",
   debt: "bg-yellow-500",
 };
+
+type Shop = {
+  id: string;
+  name: string;
+  image_url: string | null;
+  type?: string | null;
+};
+
+const mockShops: Shop[] = [
+  { id: "shop-vinmart", name: "VinMart+", image_url: null, type: "Retail" },
+  { id: "shop-tiki", name: "Tiki Trading", image_url: null, type: "Online" },
+  { id: "shop-coopmart", name: "Co.opmart", image_url: null, type: "Retail" },
+  { id: "shop-lazada", name: "Lazada Mall", image_url: null, type: "Online" },
+];
 
 const TabButton = ({
   title,
@@ -81,7 +98,7 @@ export default function TransactionForm({
 }: TransactionFormProps) {
   const t = createTranslator();
   const router = useRouter();
-  const { showSuccess } = useAppShell();
+  const { showSuccess, navigate } = useAppShell();
 
   const persistedStateRef = useRef<PersistedState | null>(null);
   if (persistedStateRef.current === null && typeof window !== "undefined") {
@@ -112,6 +129,8 @@ export default function TransactionForm({
               ? parsed.cashbackSource
               : null,
           debtMode: parsed.debtMode === "collect" ? "collect" : "lend",
+          shopId: parsed.shopId ?? "",
+          shopTab: parsed.shopTab === "bank" ? "bank" : "shop",
         };
       }
     } catch {
@@ -132,6 +151,8 @@ export default function TransactionForm({
   const defaultCashbackAmount = persistedState?.cashbackAmount ?? 0;
   const defaultCashbackSource: CashbackSource = persistedState?.cashbackSource ?? null;
   const defaultDebtMode: DebtMode = persistedState?.debtMode ?? "lend";
+  const defaultShopId = persistedState?.shopId ?? "";
+  const defaultShopTab: "shop" | "bank" = persistedState?.shopTab ?? "shop";
 
   const [activeTab, setActiveTab] = useState<Tab>(defaultTabValue);
   const [amount, setAmount] = useState(defaultAmount);
@@ -143,6 +164,9 @@ export default function TransactionForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [date, setDate] = useState(defaultDate);
   const [debtMode, setDebtMode] = useState<DebtMode>(defaultDebtMode);
+  const [shopId, setShopId] = useState(defaultShopId);
+  const [activeShopTab, setActiveShopTab] = useState<"shop" | "bank">(defaultShopTab);
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
 
   const [showCashback, setShowCashback] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -165,6 +189,8 @@ export default function TransactionForm({
     cashbackAmount: defaultCashbackAmount,
     cashbackSource: defaultCashbackSource,
     debtMode: defaultDebtMode,
+    shopId: defaultShopId,
+    shopTab: defaultShopTab,
   });
 
   // Determine whether to show cashback input based on the selected expense account
@@ -179,6 +205,17 @@ export default function TransactionForm({
       setCashbackInfo({ percent: 0, amount: 0, source: null });
     }
   }, [fromAccountId, accounts]);
+
+  useEffect(() => {
+    if (!shouldShowShopSection) {
+      if (shopId) {
+        setShopId("");
+      }
+      if (activeShopTab !== "shop") {
+        setActiveShopTab("shop");
+      }
+    }
+  }, [shouldShowShopSection, shopId, activeShopTab]);
 
   useEffect(() => {
     if (activeTab !== "debt") {
@@ -260,6 +297,26 @@ export default function TransactionForm({
   );
   const accountsWithOptions = useMemo(() => accounts.map(mapToOptions), [accounts, mapToOptions]);
   const peopleWithOptions = useMemo(() => people.map(mapToOptions), [people, mapToOptions]);
+  const shopOptions = useMemo(() => mockShops.map(mapToOptions), [mapToOptions]);
+
+  const selectedSubcategory = useMemo(() => {
+    if (!subcategoryId) {
+      return null;
+    }
+    return subcategories.find((item) => item.id === subcategoryId) ?? null;
+  }, [subcategoryId, subcategories]);
+
+  const isShopCategory = selectedSubcategory?.is_shop ?? false;
+
+  const shouldShowShopSection = useMemo(() => {
+    if (activeTab === "debt") {
+      return true;
+    }
+    if (activeTab === "expense" || activeTab === "income") {
+      return Boolean(isShopCategory);
+    }
+    return false;
+  }, [activeTab, isShopCategory]);
 
   const addCategoryLabel = useMemo(() => {
     switch (activeTab) {
@@ -276,6 +333,10 @@ export default function TransactionForm({
 
   const handleAddAccount = useCallback(() => {
     alert(t("transactionForm.addAccountPlaceholder"));
+  }, [t]);
+
+  const handleAddShop = useCallback(() => {
+    alert(t("transactionForm.addShopPlaceholder"));
   }, [t]);
 
   const returnPath = useMemo(() => {
@@ -302,6 +363,14 @@ export default function TransactionForm({
     router.push(`/categories/add?${params.toString()}`);
   }, [activeTab, returnPath, router]);
 
+  const completeNavigation = useCallback(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(PRESERVE_KEY);
+    }
+    navigate(returnTo);
+  }, [navigate, returnTo]);
+
   const isDirty = useMemo(() => {
     const snapshot = initialSnapshotRef.current;
     return (
@@ -316,24 +385,28 @@ export default function TransactionForm({
       snapshot.cashbackPercent !== cashbackInfo.percent ||
       snapshot.cashbackAmount !== cashbackInfo.amount ||
       snapshot.cashbackSource !== cashbackInfo.source ||
-      snapshot.debtMode !== debtMode
+      snapshot.debtMode !== debtMode ||
+      snapshot.shopId !== shopId ||
+      snapshot.shopTab !== activeShopTab
     );
-  }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo, debtMode]);
+  }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo, debtMode, shopId, activeShopTab]);
 
   const handleBack = useCallback(() => {
     if (isDirty) {
-      const shouldLeave = confirm(t("transactionForm.confirmLeave"));
-      if (!shouldLeave) {
-        return;
-      }
+      setShowLeaveDialog(true);
+      return;
     }
-    if (typeof window !== "undefined") {
-      sessionStorage.removeItem(STORAGE_KEY);
-      sessionStorage.removeItem(PRESERVE_KEY);
-    }
-    router.push(returnTo);
-    router.refresh();
-  }, [isDirty, router, returnTo, t]);
+    completeNavigation();
+  }, [completeNavigation, isDirty]);
+
+  const handleConfirmLeave = useCallback(() => {
+    setShowLeaveDialog(false);
+    completeNavigation();
+  }, [completeNavigation]);
+
+  const handleCancelLeave = useCallback(() => {
+    setShowLeaveDialog(false);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -352,10 +425,12 @@ export default function TransactionForm({
       cashbackAmount: cashbackInfo.amount,
       cashbackSource: cashbackInfo.source,
       debtMode,
+      shopId,
+      shopTab: activeShopTab,
     };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     persistedStateRef.current = payload;
-  }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo, debtMode]);
+  }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo, debtMode, shopId, activeShopTab]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -387,6 +462,7 @@ export default function TransactionForm({
       date,
       cashback: sanitizedCashback, // include cashback values
       debtMode,
+      shopId: shopId || undefined,
     });
 
     setIsSubmitting(false);
@@ -402,8 +478,7 @@ export default function TransactionForm({
     }
 
     showSuccess(result.message);
-    router.push(returnTo);
-    router.refresh();
+    navigate(returnTo);
   };
 
   useEffect(() => {
@@ -543,21 +618,21 @@ export default function TransactionForm({
               required
             />
 
-            <div className="rounded-md border border-indigo-100 bg-indigo-50 px-4 py-3">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+                <span className="text-sm font-semibold uppercase tracking-wide text-amber-800">
                   {t("transactionForm.debtModes.label")}
                 </span>
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   {(["lend", "collect"] as DebtMode[]).map((mode) => (
                     <button
                       key={mode}
                       type="button"
                       onClick={() => setDebtMode(mode)}
-                      className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+                      className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                         debtMode === mode
-                          ? "bg-indigo-600 text-white shadow"
-                          : "border border-indigo-200 bg-white text-indigo-600 hover:bg-indigo-100"
+                          ? "bg-amber-500 text-white shadow"
+                          : "border border-amber-300 bg-white text-amber-700 hover:bg-amber-100"
                       }`}
                     >
                       {t(`transactionForm.debtModes.${mode}` as const)}
@@ -591,6 +666,60 @@ export default function TransactionForm({
           </>
         )}
 
+        {shouldShowShopSection && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm">
+            <div className="flex flex-col gap-2 border-b border-emerald-100 bg-emerald-100/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-emerald-800">
+                  {t("transactionForm.shop.sectionTitle")}
+                </p>
+                <p className="text-xs text-emerald-700">{t("transactionForm.shop.helper")}</p>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white p-1 shadow-sm">
+                {(["shop", "bank"] as const).map((tab) => {
+                  const isActive = activeShopTab === tab;
+                  return (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setActiveShopTab(tab)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                        isActive
+                          ? "bg-emerald-500 text-white shadow"
+                          : "border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50"
+                      }`}
+                    >
+                      {t(`transactionForm.shop.tabs.${tab}` as const)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="space-y-4 p-4">
+              {activeShopTab === "shop" ? (
+                <CustomSelect
+                  label={t("transactionForm.shop.shopLabel")}
+                  value={shopId}
+                  onChange={(value) => {
+                    if (value === "__add_new__") {
+                      handleAddShop();
+                      return;
+                    }
+                    setShopId(value);
+                  }}
+                  options={shopOptions}
+                  onAddNew={handleAddShop}
+                  addNewLabel={t("transactionForm.shop.addShop")}
+                />
+              ) : (
+                <div className="rounded-md border border-dashed border-emerald-300 bg-white/80 p-4 text-sm text-emerald-700">
+                  {t("transactionForm.shop.bankComingSoon")}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <div>
           <label className="block text-sm font-medium text-gray-700">{t("common.notes")}</label>
           <textarea
@@ -619,6 +748,15 @@ export default function TransactionForm({
           </button>
         </div>
       </div>
+      <ConfirmDialog
+        open={showLeaveDialog}
+        title={t("transactionForm.confirmLeaveTitle")}
+        description={t("transactionForm.confirmLeave")}
+        cancelLabel={t("common.cancel")}
+        confirmLabel={t("common.confirm")}
+        onCancel={handleCancelLeave}
+        onConfirm={handleConfirmLeave}
+      />
     </form>
   );
 }
