@@ -27,6 +27,8 @@ type TransactionQueryRow = {
   from_account_id: string | null;
   to_account_id: string | null;
   person_id: string | null;
+  subcategory_id: string | null;
+  shop_id: string | null;
   from_account?: { id: string | null; name: string | null; image_url: string | null } | null;
   to_account?: { id: string | null; name: string | null; image_url: string | null } | null;
   person?: { id: string | null; name: string | null; image_url: string | null } | null;
@@ -156,6 +158,8 @@ async function fetchTransactions(
         from_account_id,
         to_account_id,
         person_id,
+        subcategory_id,
+        shop_id,
         from_account:accounts!from_account_id ( id, name, image_url ),
         to_account:accounts!to_account_id ( id, name, image_url ),
         person:people!person_id ( id, name, image_url ),
@@ -242,11 +246,16 @@ async function fetchTransactions(
             ? "amount"
             : null,
       notes: row.notes,
+      fromAccountId: row.from_account_id,
       fromAccount: row.from_account ?? null,
+      toAccountId: row.to_account_id,
       toAccount: row.to_account ?? null,
+      personId: row.person_id,
       person: row.person ?? null,
       categoryName: parentCategory?.name ?? null,
       subcategoryName: subcategory?.name ?? null,
+      subcategoryId: row.subcategory_id ?? subcategory?.id ?? null,
+      shopId: row.shop_id ?? null,
       transactionNature,
     };
   });
@@ -320,6 +329,7 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
         formAccounts={formData.accounts}
         formSubcategories={formData.subcategories}
         formPeople={formData.people}
+        formShops={formData.shops}
       />
     </div>
   );

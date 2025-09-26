@@ -34,6 +34,8 @@ type MockTransactionSeed = {
   notes: string | null;
   fromAccountId: string | null;
   toAccountId: string | null;
+  subcategoryId?: string | null;
+  shopId?: string | null;
   person?: { id: string; name: string; image_url: string | null } | null;
   categoryName: string | null;
   subcategoryName: string | null;
@@ -289,15 +291,20 @@ function mapToTransactionListItem(seed: MockTransactionSeed): TransactionListIte
     cashbackAmount: seed.cashbackAmount,
     cashbackSource: seed.cashbackSource ?? null,
     notes: seed.notes,
+    fromAccountId: seed.fromAccountId,
     fromAccount: fromAccount
       ? { id: fromAccount.id, name: fromAccount.name, image_url: fromAccount.image_url }
       : null,
+    toAccountId: seed.toAccountId,
     toAccount: toAccount
       ? { id: toAccount.id, name: toAccount.name, image_url: toAccount.image_url }
       : null,
+    personId: seed.person?.id ?? null,
     person: seed.person ?? null,
     categoryName: seed.categoryName,
     subcategoryName: seed.subcategoryName,
+    subcategoryId: seed.subcategoryId ?? null,
+    shopId: seed.shopId ?? null,
     transactionNature: seed.transactionNature,
   };
 }

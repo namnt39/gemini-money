@@ -5,6 +5,12 @@ import { revalidatePath } from "next/cache";
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
+const revalidateTransactionViews = () => {
+  revalidatePath("/");
+  revalidatePath("/transactions");
+  revalidatePath("/transactions/add");
+};
+
 type CashbackData = {
   percent: number; // 0-100
   amount: number; // >= 0
@@ -15,18 +21,19 @@ type TransactionData = {
   activeTab: "expense" | "income" | "transfer" | "debt";
   amount: number;
   notes: string | null;
-  fromAccountId: string;
-  toAccountId: string;
-  subcategoryId: string;
-  personId: string;
+  fromAccountId?: string | null;
+  toAccountId?: string | null;
+  subcategoryId?: string | null;
+  personId?: string | null;
   date: string;
   cashback: CashbackData | null; // include cashback information
   debtMode?: "collect" | "lend";
   shopId?: string | null;
 };
 
-export async function createTransaction(data: TransactionData) {
-  // Basic validation rules
+type UpdateTransactionInput = TransactionData & { id: string };
+
+async function persistTransaction(data: TransactionData, options: { id?: string } = {}) {
   if (!data.amount || data.amount <= 0) {
     return { success: false, message: "Invalid amount." };
   }
@@ -34,7 +41,13 @@ export async function createTransaction(data: TransactionData) {
     return { success: false, message: "Invalid transaction date." };
   }
 
-  // Validate cashback input if provided
+  const normalizedFromAccountId = data.fromAccountId?.trim() || null;
+  const normalizedToAccountId = data.toAccountId?.trim() || null;
+  const normalizedSubcategoryId = data.subcategoryId?.trim() || null;
+  const normalizedPersonId = data.personId?.trim() || null;
+  const normalizedShopId = data.shopId?.trim() || null;
+  const normalizedNotes = data.notes?.trim() ? data.notes.trim() : null;
+
   let cashbackPercent: number | null = null;
   let cashbackAmount: number | null = null;
 
@@ -42,14 +55,13 @@ export async function createTransaction(data: TransactionData) {
     const { percent, amount, source } = data.cashback;
     const inputSource = source === "percent" || source === "amount" ? source : null;
 
-    // Coerce NaN -> invalid
     const pct = Number(percent);
     const amt = Number(amount);
 
-    if (isNaN(pct) || pct < 0 || pct > 100) {
+    if (Number.isNaN(pct) || pct < 0 || pct > 100) {
       return { success: false, message: "Cashback percentage must be between 0 and 100." };
     }
-    if (isNaN(amt) || amt < 0) {
+    if (Number.isNaN(amt) || amt < 0) {
       return { success: false, message: "Cashback amount must be greater than or equal to 0." };
     }
     if (amt > data.amount) {
@@ -63,11 +75,11 @@ export async function createTransaction(data: TransactionData) {
     let normalizedAmount = baseAmount;
     let allowedAmountForRounding = data.amount;
 
-    if (data.activeTab === "expense" && data.fromAccountId) {
+    if (data.activeTab === "expense" && normalizedFromAccountId) {
       const { data: accountInfo } = await supabase
         .from("accounts")
         .select("cashback_percentage, max_cashback_amount")
-        .eq("id", data.fromAccountId)
+        .eq("id", normalizedFromAccountId)
         .maybeSingle();
 
       if (accountInfo) {
@@ -110,98 +122,110 @@ export async function createTransaction(data: TransactionData) {
       }
     }
 
-    normalizedAmount = Math.max(
-      0,
-      Math.min(Math.round(normalizedAmount), data.amount, Math.round(allowedAmountForRounding))
-    );
-    normalizedPercent =
-      data.amount > 0 ? Math.max(0, Number(((normalizedAmount / data.amount) * 100).toFixed(2))) : 0;
+    normalizedAmount = Math.max(0, Math.min(Math.round(normalizedAmount), data.amount, Math.round(allowedAmountForRounding)));
+    normalizedPercent = data.amount > 0 ? Math.max(0, Number(((normalizedAmount / data.amount) * 100).toFixed(2))) : 0;
 
     cashbackPercent = inputSource === "percent" ? normalizedPercent : null;
     cashbackAmount = normalizedAmount;
   }
 
-  // Calculate final price: amount minus cashback (never negative)
   const finalPrice = Math.max(0, data.amount - (cashbackAmount ?? 0));
 
-  // Prepare payload for insertion
-  const transactionToInsert: Record<string, unknown> = {
+  const transactionToPersist: Record<string, unknown> = {
     date: data.date,
     amount: data.amount,
-    notes: data.notes,
+    notes: normalizedNotes,
     status: "Active",
-    // Cashback fields
     cashback_percent: cashbackPercent,
     cashback_amount: cashbackAmount,
-    // Final amount after cashback
     final_price: finalPrice,
+    from_account_id: null,
+    to_account_id: null,
+    subcategory_id: null,
+    person_id: normalizedPersonId,
+    shop_id: normalizedShopId,
   };
 
-  transactionToInsert.shop_id = data.shopId ?? null;
-
-  // Tab-specific handling
   if (data.activeTab === "expense") {
-    if (!data.fromAccountId || !data.subcategoryId) {
+    if (!normalizedFromAccountId || !normalizedSubcategoryId) {
       return { success: false, message: "Please choose an account and category." };
     }
-    transactionToInsert.from_account_id = data.fromAccountId;
-    transactionToInsert.subcategory_id = data.subcategoryId;
+    transactionToPersist.from_account_id = normalizedFromAccountId;
+    transactionToPersist.subcategory_id = normalizedSubcategoryId;
   } else if (data.activeTab === "income") {
-    if (!data.toAccountId || !data.subcategoryId) {
+    if (!normalizedToAccountId || !normalizedSubcategoryId) {
       return { success: false, message: "Please choose an account and category." };
     }
-    transactionToInsert.to_account_id = data.toAccountId;
-    transactionToInsert.subcategory_id = data.subcategoryId;
+    transactionToPersist.to_account_id = normalizedToAccountId;
+    transactionToPersist.subcategory_id = normalizedSubcategoryId;
   } else if (data.activeTab === "transfer") {
-    if (!data.fromAccountId || !data.toAccountId || !data.subcategoryId) {
+    if (!normalizedFromAccountId || !normalizedToAccountId || !normalizedSubcategoryId) {
       return { success: false, message: "Please choose both accounts and a category." };
     }
-    if (data.fromAccountId === data.toAccountId) {
+    if (normalizedFromAccountId === normalizedToAccountId) {
       return { success: false, message: "Transfers require different accounts." };
     }
-    transactionToInsert.from_account_id = data.fromAccountId;
-    transactionToInsert.to_account_id = data.toAccountId;
-    transactionToInsert.subcategory_id = data.subcategoryId;
+    transactionToPersist.from_account_id = normalizedFromAccountId;
+    transactionToPersist.to_account_id = normalizedToAccountId;
+    transactionToPersist.subcategory_id = normalizedSubcategoryId;
   } else if (data.activeTab === "debt") {
-    if (!data.personId) {
+    if (!normalizedPersonId) {
       return { success: false, message: "Please choose a person and account." };
     }
 
     const debtMode = data.debtMode === "collect" ? "collect" : "lend";
-    transactionToInsert.person_id = data.personId;
 
     if (debtMode === "collect") {
-      if (!data.toAccountId) {
+      if (!normalizedToAccountId) {
         return { success: false, message: "Please choose a destination account." };
       }
-      transactionToInsert.to_account_id = data.toAccountId;
+      transactionToPersist.to_account_id = normalizedToAccountId;
     } else {
-      if (!data.fromAccountId) {
+      if (!normalizedFromAccountId) {
         return { success: false, message: "Please choose a source account." };
       }
-      transactionToInsert.from_account_id = data.fromAccountId;
+      transactionToPersist.from_account_id = normalizedFromAccountId;
     }
 
-    if (data.subcategoryId) {
-      transactionToInsert.subcategory_id = data.subcategoryId;
+    if (normalizedSubcategoryId) {
+      transactionToPersist.subcategory_id = normalizedSubcategoryId;
     }
+  } else {
+    return { success: false, message: "Unsupported transaction type." };
   }
 
-  if (!("person_id" in transactionToInsert)) {
-    transactionToInsert.person_id = data.personId || null;
+  const query = supabase.from("transactions");
+  let error: { message?: string } | null = null;
+  if (options.id) {
+    ({ error } = await query.update(transactionToPersist).eq("id", options.id));
+  } else {
+    ({ error } = await query.insert(transactionToPersist));
   }
 
-  // Insert transaction
-  const { error } = await supabase.from("transactions").insert(transactionToInsert);
   if (error) {
     return { success: false, message: `Database error: ${error.message}` };
   }
 
-  // Revalidate affected pages
-  revalidatePath("/");
-  revalidatePath("/transactions");
+  revalidateTransactionViews();
 
-  return { success: true, message: "Transaction added successfully!" };
+  return {
+    success: true,
+    message: options.id ? "Transaction updated successfully." : "Transaction created successfully!",
+  };
+}
+
+export async function createTransaction(data: TransactionData) {
+  return persistTransaction(data);
+}
+
+export async function updateTransaction(input: UpdateTransactionInput) {
+  const id = input.id?.trim();
+  if (!id) {
+    return { success: false, message: "Missing transaction identifier." };
+  }
+  const { id: _, ...rest } = input;
+  void _;
+  return persistTransaction(rest, { id });
 }
 
 export async function deleteTransaction(transactionId: string) {
@@ -219,8 +243,7 @@ export async function deleteTransaction(transactionId: string) {
     return { success: false, message: "Failed to delete transaction." };
   }
 
-  revalidatePath("/");
-  revalidatePath("/transactions");
+  revalidateTransactionViews();
 
   return { success: true, message: "Transaction deleted." };
 }
@@ -240,8 +263,7 @@ export async function deleteTransactions(transactionIds: string[]) {
     return { success: false, message: "Failed to delete selected transactions." };
   }
 
-  revalidatePath("/");
-  revalidatePath("/transactions");
+  revalidateTransactionViews();
 
   return { success: true, message: "Transactions deleted." };
 }

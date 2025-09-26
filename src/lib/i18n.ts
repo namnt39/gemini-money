@@ -151,6 +151,29 @@ const resources = {
         viewTransactions: "View transactions",
       },
     },
+    shops: {
+      title: "Shops",
+      description: "Browse connected merchants and financial institutions.",
+      filters: {
+        searchPlaceholder: "Search shops...",
+        typeLabel: "Type",
+        allTypes: "All types",
+      },
+      fields: {
+        type: "Category",
+        created: "Created",
+      },
+      summary: {
+        count: "Showing {{count}} shops",
+      },
+      types: {
+        bank: "Bank",
+        ecommerce: "E-commerce",
+        retail: "Retail",
+        other: "Other",
+      },
+      empty: "No shops found for the selected filters.",
+    },
     transactionForm: {
       title: "Add New Transaction",
       tabs: {
@@ -238,6 +261,10 @@ const resources = {
         deleteConfirm: "Delete this category?",
         deleteSuccess: "Category deleted successfully.",
         deleteError: "Unable to delete the selected category.",
+        deleteAll: "Delete all",
+        deleteAllConfirm: "Delete all selected categories?",
+        deleteAllSuccess: "Selected categories deleted successfully.",
+        deleteAllError: "Unable to delete all selected categories.",
       },
     },
     categoryForm: {
@@ -407,6 +434,29 @@ const resources = {
         viewTransactions: "Xem giao dịch",
       },
     },
+    shops: {
+      title: "Cửa hàng",
+      description: "Xem các cửa hàng và tổ chức tài chính đã được liên kết.",
+      filters: {
+        searchPlaceholder: "Tìm kiếm cửa hàng...",
+        typeLabel: "Loại",
+        allTypes: "Tất cả",
+      },
+      fields: {
+        type: "Phân loại",
+        created: "Ngày tạo",
+      },
+      summary: {
+        count: "Đang hiển thị {{count}} cửa hàng",
+      },
+      types: {
+        bank: "Ngân hàng",
+        ecommerce: "Thương mại điện tử",
+        retail: "Bán lẻ",
+        other: "Khác",
+      },
+      empty: "Không tìm thấy cửa hàng phù hợp.",
+    },
     transactionForm: {
       title: "Thêm Giao dịch mới",
       tabs: {
@@ -494,6 +544,10 @@ const resources = {
         deleteConfirm: "Bạn có chắc muốn xóa danh mục này?",
         deleteSuccess: "Đã xóa danh mục thành công.",
         deleteError: "Không thể xóa danh mục đã chọn.",
+        deleteAll: "Xóa tất cả",
+        deleteAllConfirm: "Xóa tất cả danh mục đã chọn?",
+        deleteAllSuccess: "Đã xóa các danh mục đã chọn.",
+        deleteAllError: "Không thể xóa tất cả danh mục đã chọn.",
       },
     },
     categoryForm: {

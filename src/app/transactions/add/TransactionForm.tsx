@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Account, Subcategory, Person } from "./formData";
-import { createTransaction } from "../actions";
+import { Account, Subcategory, Person, Shop } from "./formData";
+import { createTransaction, updateTransaction } from "../actions";
 import AmountInput from "@/components/forms/AmountInput";
 import CustomSelect from "@/components/forms/CustomSelect";
 import CashbackInput from "@/components/forms/CashbackInput";
@@ -11,6 +11,7 @@ import { createTranslator } from "@/lib/i18n";
 import { normalizeTransactionNature, type TransactionNatureCode } from "@/lib/transactionNature";
 import { useAppShell } from "@/components/AppShellProvider";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import type { TransactionListItem } from "../types";
 
 type Tab = "expense" | "income" | "transfer" | "debt";
 type DebtMode = "collect" | "lend";
@@ -18,14 +19,95 @@ type TransactionFormProps = {
   accounts: Account[];
   subcategories: Subcategory[];
   people: Person[];
+  shops: Shop[];
   returnTo: string;
   createdSubcategoryId?: string;
   initialTab?: Tab;
+  initialTransaction?: TransactionListItem;
+  mode?: "create" | "edit";
   onClose?: () => void;
   layout?: "page" | "modal";
 };
 type CashbackInfo = { percent: number; amount: number; source: CashbackSource };
 type CashbackSource = "percent" | "amount" | null;
+
+const formatAmountForInput = (value: number | null | undefined) => {
+  if (value == null || Number.isNaN(value)) {
+    return "";
+  }
+  const rounded = Math.round(value);
+  return rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+};
+
+const toDateInputValue = (value: string | null | undefined) => {
+  if (!value) {
+    return new Date().toISOString().split("T")[0];
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString().split("T")[0];
+  }
+  return parsed.toISOString().split("T")[0];
+};
+
+const determineTabFromTransactionRecord = (transaction: TransactionListItem): Tab => {
+  const nature = transaction.transactionNature ?? null;
+  if (nature === "IN") {
+    return "income";
+  }
+  if (nature === "TF") {
+    return "transfer";
+  }
+  if (nature === "DE") {
+    return "debt";
+  }
+  if (transaction.personId) {
+    return "debt";
+  }
+  if (transaction.fromAccountId && transaction.toAccountId) {
+    return "transfer";
+  }
+  if (transaction.toAccountId && !transaction.fromAccountId) {
+    return "income";
+  }
+  return "expense";
+};
+
+const inferDebtModeFromTransaction = (transaction: TransactionListItem): DebtMode => {
+  if (transaction.toAccountId && !transaction.fromAccountId) {
+    return "collect";
+  }
+  return "lend";
+};
+
+const extractCashbackInfoFromTransaction = (transaction: TransactionListItem): {
+  info: CashbackInfo;
+  show: boolean;
+} => {
+  const percentValue = Number.isFinite(transaction.cashbackPercent ?? NaN)
+    ? Number(transaction.cashbackPercent ?? 0)
+    : 0;
+  const amountValue = Number.isFinite(transaction.cashbackAmount ?? NaN)
+    ? Number(transaction.cashbackAmount ?? 0)
+    : 0;
+  const derivedSource: CashbackSource =
+    transaction.cashbackSource === "percent" || transaction.cashbackSource === "amount"
+      ? transaction.cashbackSource
+      : percentValue > 0
+        ? "percent"
+        : amountValue > 0
+          ? "amount"
+          : null;
+
+  return {
+    info: {
+      percent: percentValue,
+      amount: amountValue,
+      source: derivedSource,
+    },
+    show: percentValue > 0 || amountValue > 0,
+  };
+};
 
 type PersistedState = {
   activeTab: Tab;
@@ -64,25 +146,6 @@ const debtModePalette: Record<DebtMode, { active: string; inactive: string }> = 
   },
 };
 
-type Shop = {
-  id: string;
-  name: string;
-  image_url: string | null;
-  type?: string | null;
-};
-
-const mockShops: Shop[] = [
-  { id: "shop-vinmart", name: "VinMart+", image_url: null, type: "Retail" },
-  {
-    id: "shop-tiki",
-    name: "Tiki Trading",
-    image_url: "/images/mock-shops/tiki.svg",
-    type: "Online",
-  },
-  { id: "shop-coopmart", name: "Co.opmart", image_url: null, type: "Retail" },
-  { id: "shop-lazada", name: "Lazada Mall", image_url: null, type: "Online" },
-];
-
 const TabButton = ({
   title,
   active,
@@ -109,18 +172,23 @@ export default function TransactionForm({
   accounts,
   subcategories,
   people,
+  shops,
   returnTo,
   createdSubcategoryId,
   initialTab,
+  initialTransaction,
+  mode = "create",
   onClose,
   layout = "page",
 }: TransactionFormProps) {
   const t = createTranslator();
   const router = useRouter();
   const { showSuccess, navigate } = useAppShell();
+  const isEditMode = mode === "edit";
+  const editingTransaction = isEditMode && initialTransaction ? initialTransaction : null;
 
   const persistedStateRef = useRef<PersistedState | null>(null);
-  if (persistedStateRef.current === null && typeof window !== "undefined") {
+  if (!isEditMode && persistedStateRef.current === null && typeof window !== "undefined") {
     try {
       const shouldPreserve = sessionStorage.getItem(PRESERVE_KEY) === "1";
       const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -156,20 +224,31 @@ export default function TransactionForm({
     }
   }
 
-  const persistedState = persistedStateRef.current;
-  const defaultTabValue: Tab = persistedState?.activeTab ?? initialTab ?? "expense";
-  const defaultAmount = persistedState?.amount ?? "";
-  const defaultFromAccount = persistedState?.fromAccountId ?? "";
-  const defaultToAccount = persistedState?.toAccountId ?? "";
-  const defaultSubcategory = persistedState?.subcategoryId ?? "";
-  const defaultPerson = persistedState?.personId ?? "";
-  const defaultNotes = persistedState?.notes ?? "";
-  const defaultDate = persistedState?.date ?? new Date().toISOString().split("T")[0];
-  const defaultCashbackPercent = persistedState?.cashbackPercent ?? 0;
-  const defaultCashbackAmount = persistedState?.cashbackAmount ?? 0;
-  const defaultCashbackSource: CashbackSource = persistedState?.cashbackSource ?? null;
-  const defaultDebtMode: DebtMode = persistedState?.debtMode ?? "lend";
-  const defaultShopId = persistedState?.shopId ?? "";
+  const persistedState = isEditMode ? null : persistedStateRef.current;
+  const defaultTabValue: Tab = editingTransaction
+    ? determineTabFromTransactionRecord(editingTransaction)
+    : persistedState?.activeTab ?? initialTab ?? "expense";
+  const defaultAmount = editingTransaction
+    ? formatAmountForInput(editingTransaction.amount)
+    : persistedState?.amount ?? "";
+  const defaultFromAccount = editingTransaction?.fromAccountId ?? persistedState?.fromAccountId ?? "";
+  const defaultToAccount = editingTransaction?.toAccountId ?? persistedState?.toAccountId ?? "";
+  const defaultSubcategory = editingTransaction?.subcategoryId ?? persistedState?.subcategoryId ?? "";
+  const defaultPerson = editingTransaction?.personId ?? persistedState?.personId ?? "";
+  const defaultNotes = editingTransaction?.notes ?? persistedState?.notes ?? "";
+  const defaultDate = editingTransaction ? toDateInputValue(editingTransaction.date) : persistedState?.date ?? new Date().toISOString().split("T")[0];
+  const { info: editingCashbackInfo, show: editingShowCashback } = editingTransaction
+    ? extractCashbackInfoFromTransaction(editingTransaction)
+    : { info: { percent: 0, amount: 0, source: null }, show: false };
+  const defaultCashbackPercent = editingTransaction ? editingCashbackInfo.percent : persistedState?.cashbackPercent ?? 0;
+  const defaultCashbackAmount = editingTransaction ? editingCashbackInfo.amount : persistedState?.cashbackAmount ?? 0;
+  const defaultCashbackSource: CashbackSource = editingTransaction
+    ? editingCashbackInfo.source
+    : persistedState?.cashbackSource ?? null;
+  const defaultDebtMode: DebtMode = editingTransaction && defaultTabValue === "debt"
+    ? inferDebtModeFromTransaction(editingTransaction)
+    : persistedState?.debtMode ?? "lend";
+  const defaultShopId = editingTransaction?.shopId ?? persistedState?.shopId ?? "";
 
   const [activeTab, setActiveTab] = useState<Tab>(defaultTabValue);
   const [amount, setAmount] = useState(defaultAmount);
@@ -184,8 +263,13 @@ export default function TransactionForm({
   const [shopId, setShopId] = useState(defaultShopId);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
 
-  const [showCashback, setShowCashback] = useState(false);
-  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+  const [showCashback, setShowCashback] = useState(() => (isEditMode ? editingShowCashback : false));
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(() => {
+    if (defaultFromAccount) {
+      return accounts.find((account) => account.id === defaultFromAccount) ?? null;
+    }
+    return null;
+  });
   const [cashbackInfo, setCashbackInfo] = useState<CashbackInfo>({
     percent: defaultCashbackPercent,
     amount: defaultCashbackAmount,
@@ -210,16 +294,18 @@ export default function TransactionForm({
 
   // Determine whether to show cashback input based on the selected expense account
   useEffect(() => {
-    const account = accounts.find((a) => a.id === fromAccountId);
-    if (account && account.is_cashback_eligible) {
+    const account = accounts.find((a) => a.id === fromAccountId) ?? null;
+    setSelectedAccount(account);
+    const shouldEnableCashback = Boolean(account?.is_cashback_eligible) ||
+      (isEditMode && editingTransaction && editingTransaction.fromAccountId === account?.id && editingShowCashback);
+
+    if (shouldEnableCashback) {
       setShowCashback(true);
-      setSelectedAccount(account);
     } else {
       setShowCashback(false);
-      setSelectedAccount(null);
       setCashbackInfo({ percent: 0, amount: 0, source: null });
     }
-  }, [fromAccountId, accounts]);
+  }, [accounts, fromAccountId, editingShowCashback, editingTransaction, isEditMode]);
 
   const getTransactionNature = useCallback((sub: Subcategory): TransactionNatureCode | null => {
     const direct = normalizeTransactionNature(sub.transaction_nature ?? null);
@@ -289,8 +375,12 @@ export default function TransactionForm({
     [subcategories, getTransactionNature, mapToOptions]
   );
   const accountsWithOptions = useMemo(() => accounts.map(mapToOptions), [accounts, mapToOptions]);
+  const bankAccountOptions = useMemo(
+    () => accounts.filter((account) => account.type?.toLowerCase() === "bank").map(mapToOptions),
+    [accounts, mapToOptions]
+  );
   const peopleWithOptions = useMemo(() => people.map(mapToOptions), [people, mapToOptions]);
-  const shopOptions = useMemo(() => mockShops.map(mapToOptions), [mapToOptions]);
+  const shopOptions = useMemo(() => shops.map(mapToOptions), [mapToOptions, shops]);
 
   const selectedSubcategory = useMemo(() => {
     if (!subcategoryId) {
@@ -306,10 +396,13 @@ export default function TransactionForm({
       return true;
     }
     if (activeTab === "expense" || activeTab === "income") {
-      return Boolean(isShopCategory);
+      return Boolean(isShopCategory || shopId);
+    }
+    if (activeTab === "transfer") {
+      return Boolean(shopId);
     }
     return false;
-  }, [activeTab, isShopCategory]);
+  }, [activeTab, isShopCategory, shopId]);
 
   useEffect(() => {
     if (!shouldShowShopSection && shopId) {
@@ -325,8 +418,11 @@ export default function TransactionForm({
       setToAccountId("");
     } else {
       setFromAccountId("");
+      if (bankAccountOptions.length > 0 && !bankAccountOptions.some((option) => option.id === toAccountId)) {
+        setToAccountId(bankAccountOptions[0].id);
+      }
     }
-  }, [activeTab, debtMode]);
+  }, [activeTab, bankAccountOptions, debtMode, toAccountId]);
 
   const addCategoryLabel = useMemo(() => {
     switch (activeTab) {
@@ -346,8 +442,11 @@ export default function TransactionForm({
   }, [t]);
 
   const handleAddShop = useCallback(() => {
-    alert(t("transactionForm.addShopPlaceholder"));
-  }, [t]);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(PRESERVE_KEY, "1");
+    }
+    router.push("/shops");
+  }, [router]);
 
   const returnPath = useMemo(() => {
     const params = new URLSearchParams();
@@ -421,7 +520,7 @@ export default function TransactionForm({
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (typeof window === "undefined" || isEditMode) {
       return;
     }
     const payload: PersistedState = {
@@ -441,7 +540,7 @@ export default function TransactionForm({
     };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     persistedStateRef.current = payload;
-  }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo, debtMode, shopId]);
+  }, [activeTab, amount, cashbackInfo, debtMode, fromAccountId, isEditMode, notes, personId, shopId, subcategoryId, toAccountId, date]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -462,19 +561,24 @@ export default function TransactionForm({
     const preparedFromAccountId = activeTab === "debt" && debtMode === "collect" ? "" : fromAccountId;
     const preparedToAccountId = activeTab === "debt" && debtMode === "lend" ? "" : toAccountId;
 
-    const result = await createTransaction({
+    const normalizedNotes = notes?.trim() ? notes.trim() : null;
+    const sanitizedPayload = {
       activeTab,
       amount: parseFloat(amount.replace(/,/g, "")),
-      notes: notes || null,
-      fromAccountId: preparedFromAccountId,
-      toAccountId: preparedToAccountId,
-      subcategoryId,
-      personId,
+      notes: normalizedNotes,
+      fromAccountId: preparedFromAccountId?.trim() ? preparedFromAccountId.trim() : undefined,
+      toAccountId: preparedToAccountId?.trim() ? preparedToAccountId.trim() : undefined,
+      subcategoryId: subcategoryId?.trim() ? subcategoryId.trim() : undefined,
+      personId: personId?.trim() ? personId.trim() : undefined,
       date,
-      cashback: sanitizedCashback, // include cashback values
+      cashback: sanitizedCashback,
       debtMode,
-      shopId: shopId || undefined,
-    });
+      shopId: shopId?.trim() ? shopId.trim() : undefined,
+    };
+
+    const result = isEditMode && editingTransaction
+      ? await updateTransaction({ id: editingTransaction.id, ...sanitizedPayload })
+      : await createTransaction(sanitizedPayload);
 
     setIsSubmitting(false);
 
@@ -493,6 +597,9 @@ export default function TransactionForm({
   };
 
   useEffect(() => {
+    if (isEditMode) {
+      return () => undefined;
+    }
     return () => {
       if (typeof window !== "undefined") {
         const shouldPreserve = sessionStorage.getItem(PRESERVE_KEY) === "1";
@@ -502,7 +609,7 @@ export default function TransactionForm({
         }
       }
     };
-  }, []);
+  }, [isEditMode]);
 
   const formClasses =
     layout === "modal"
@@ -694,7 +801,7 @@ export default function TransactionForm({
                 label={t("transactionForm.labels.toAccount")}
                 value={toAccountId}
                 onChange={setToAccountId}
-                options={accountsWithOptions}
+                options={bankAccountOptions.length > 0 ? bankAccountOptions : accountsWithOptions}
                 required
                 onAddNew={handleAddAccount}
                 addNewLabel={t("transactionForm.addAccount")}
