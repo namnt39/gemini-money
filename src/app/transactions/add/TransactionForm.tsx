@@ -442,19 +442,22 @@ export default function TransactionForm({
     alert(t("transactionForm.addAccountPlaceholder"));
   }, [t]);
 
-  const handleAddShop = useCallback(() => {
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem(PRESERVE_KEY, "1");
-    }
-    router.push("/shops");
-  }, [router]);
-
   const returnPath = useMemo(() => {
     const params = new URLSearchParams();
     params.set("tab", activeTab);
     const query = params.toString();
     return query ? `/transactions/add?${query}` : "/transactions/add";
   }, [activeTab]);
+
+  const handleAddShop = useCallback(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(PRESERVE_KEY, "1");
+    }
+    const params = new URLSearchParams();
+    params.set("openModal", "1");
+    params.set("returnTo", returnPath);
+    router.push(`/shops?${params.toString()}`);
+  }, [returnPath, router]);
 
   const handleAddCategory = useCallback(() => {
     const natureMap: Record<Tab, string> = {

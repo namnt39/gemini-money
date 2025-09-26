@@ -1776,7 +1776,7 @@ export default function TransactionsView({
                         <span
                           role="separator"
                           aria-hidden="true"
-                          onMouseDown={(event) => handleResizeStart(event, column.id)}
+                          onPointerDown={(event) => handleResizeStart(event, column.id)}
                           className="group absolute top-0 right-0 flex h-full w-3 translate-x-1/2 cursor-col-resize select-none items-center justify-center"
                         >
                           <span className="h-8 w-px rounded bg-transparent transition group-hover:bg-indigo-400" />

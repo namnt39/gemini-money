@@ -13,6 +13,8 @@ import type { Shop } from "../transactions/add/formData";
 type ShopsViewProps = {
   shops: Shop[];
   errorMessage?: string;
+  returnTo?: string;
+  shouldOpenModal?: boolean;
 };
 
 type TypeFilter = "all" | string;
@@ -54,25 +56,29 @@ const getInitials = (value: string) => {
     .toUpperCase();
 };
 
-export default function ShopsView({ shops, errorMessage }: ShopsViewProps) {
+export default function ShopsView({ shops, errorMessage, returnTo, shouldOpenModal = false }: ShopsViewProps) {
   const t = createTranslator();
   const { navigate } = useAppShell();
   const [shopRecords, setShopRecords] = useState<ShopRecord[]>(() => shops.map((shop) => ({ ...shop })));
-  const [selectedShopId, setSelectedShopId] = useState<string | null>(shops[0]?.id ?? null);
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
-  const [isAddModalOpen, setAddModalOpen] = useState(false);
+  const [isAddModalOpen, setAddModalOpen] = useState(shouldOpenModal);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setShopRecords(shops.map((shop) => ({ ...shop })));
-    setSelectedShopId((prev) => {
-      if (prev && shops.some((shop) => shop.id === prev)) {
-        return prev;
-      }
-      return shops[0]?.id ?? null;
-    });
   }, [shops]);
+
+  useEffect(() => {
+    if (shouldOpenModal) {
+      setAddModalOpen(true);
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("openModal");
+        window.history.replaceState(null, "", url.toString());
+      }
+    }
+  }, [shouldOpenModal]);
 
   const availableTypes = useMemo(() => {
     const unique = new Set<string>();
@@ -87,8 +93,9 @@ export default function ShopsView({ shops, errorMessage }: ShopsViewProps) {
   const filteredShops = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
     return shopRecords.filter((shop) => {
+      const normalizedType = normalizeType(shop.type);
       const matchesType =
-        typeFilter === "all" || normalizeType(shop.type) === typeFilter || (typeFilter === "other" && !shop.type);
+        typeFilter === "all" || normalizedType === typeFilter || (typeFilter === "other" && !shop.type);
       if (!matchesType) {
         return false;
       }
@@ -99,25 +106,10 @@ export default function ShopsView({ shops, errorMessage }: ShopsViewProps) {
     });
   }, [shopRecords, searchTerm, typeFilter]);
 
-  useEffect(() => {
-    if (filteredShops.length === 0) {
-      setSelectedShopId(null);
-      return;
-    }
-    if (!selectedShopId || !filteredShops.some((shop) => shop.id === selectedShopId)) {
-      setSelectedShopId(filteredShops[0].id);
-    }
-  }, [filteredShops, selectedShopId]);
-
   const handleSearchClear = useCallback(() => {
     setSearchTerm("");
     searchInputRef.current?.focus();
   }, []);
-
-  const selectedShop = useMemo(
-    () => filteredShops.find((shop) => shop.id === selectedShopId) ?? null,
-    [filteredShops, selectedShopId]
-  );
 
   const summaryLabel = useMemo(() => t("shops.summary.count", { count: filteredShops.length }), [filteredShops.length, t]);
 
@@ -133,11 +125,6 @@ export default function ShopsView({ shops, errorMessage }: ShopsViewProps) {
     alert(`Editing ${shop.name} is coming soon.`);
   }, []);
 
-  const handleNavigateToTransactions = useCallback(() => {
-    navigate("/transactions");
-    setAddModalOpen(false);
-  }, [navigate]);
-
   const generateShopId = useCallback(() => {
     if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
       return crypto.randomUUID();
@@ -146,18 +133,17 @@ export default function ShopsView({ shops, errorMessage }: ShopsViewProps) {
   }, []);
 
   const handleCreateShop = useCallback(
-    (values: { name: string; type?: string; notes?: string | null }) => {
+    (values: { name: string; type?: string; notes?: string | null; imageUrl?: string | null }) => {
       const id = generateShopId();
       const record: ShopRecord = {
         id,
         name: values.name,
         type: values.type ? values.type.toLowerCase() : null,
-        image_url: null,
+        image_url: values.imageUrl ? values.imageUrl : null,
         created_at: new Date().toISOString(),
         notes: values.notes ?? null,
       };
       setShopRecords((prev) => [record, ...prev]);
-      setSelectedShopId(id);
       setAddModalOpen(false);
       setSearchTerm("");
       setTypeFilter("all");
@@ -165,9 +151,13 @@ export default function ShopsView({ shops, errorMessage }: ShopsViewProps) {
     [generateShopId]
   );
 
-  const handleViewShop = useCallback((shop: ShopRecord) => {
-    setSelectedShopId(shop.id);
-  }, []);
+  const handleModalBack = useCallback(() => {
+    if (returnTo) {
+      navigate(returnTo);
+      return;
+    }
+    setAddModalOpen(false);
+  }, [navigate, returnTo]);
 
   const formatTypeLabel = useCallback(
     (type: string) => {
@@ -182,17 +172,6 @@ export default function ShopsView({ shops, errorMessage }: ShopsViewProps) {
     },
     [t]
   );
-
-  const selectedShopDetails = useMemo(() => {
-    if (!selectedShop) {
-      return null;
-    }
-    const detailType = formatTypeLabel(normalizeType(selectedShop.type));
-    return {
-      detailType,
-      initials: getInitials(selectedShop.name),
-    };
-  }, [formatTypeLabel, selectedShop]);
 
   const typeOptions = useMemo(() => {
     const base: { label: string; value: TypeFilter }[] = [
@@ -216,36 +195,18 @@ export default function ShopsView({ shops, errorMessage }: ShopsViewProps) {
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{errorMessage}</div>
         ) : null}
         <div className="flex flex-col gap-4 border-b border-gray-200 bg-gray-50 px-4 py-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="w-full max-w-lg">
-              <div className="relative">
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  role="searchbox"
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder={t("shops.filters.searchPlaceholder")}
-                  aria-label={t("shops.filters.searchPlaceholder")}
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-16 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-                {searchTerm ? (
-                  <div className="absolute inset-y-1.5 right-2 flex items-center">
-                    <Tooltip label={t("common.clear")}>
-                      <button
-                        type="button"
-                        onClick={handleSearchClear}
-                        className="inline-flex items-center justify-center rounded-md border border-transparent p-2 text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
-                        aria-label={t("common.clear")}
-                      >
-                        <ClearIcon />
-                      </button>
-                    </Tooltip>
-                  </div>
-                ) : null}
-              </div>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+              <button
+                type="button"
+                onClick={() => setAddModalOpen(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+              >
+                {addShopLabel}
+              </button>
+              <span className="text-sm text-gray-600">{summaryLabel}</span>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
               <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <span>{t("shops.filters.typeLabel")}</span>
                 <select
@@ -261,185 +222,116 @@ export default function ShopsView({ shops, errorMessage }: ShopsViewProps) {
                   ))}
                 </select>
               </div>
-              <button
-                type="button"
-                onClick={() => setAddModalOpen(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 whitespace-nowrap"
-              >
-                {addShopLabel}
-              </button>
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-col gap-6 px-4 py-4 lg:flex-row">
-          <aside className="flex w-full flex-col gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 lg:w-80">
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Shop details</h3>
-            </div>
-            {selectedShop && selectedShopDetails ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-14 w-14 overflow-hidden rounded-full border border-gray-200 bg-white">
-                    {selectedShop.image_url ? (
-                      <RemoteImage
-                        src={selectedShop.image_url}
-                        alt={selectedShop.name}
-                        width={56}
-                        height={56}
-                        className="h-14 w-14 object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-gray-500">
-                        {selectedShopDetails.initials || "?"}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-base font-semibold text-gray-900">{selectedShop.name}</p>
-                    <p className="text-xs uppercase tracking-wide text-gray-500">{selectedShopDetails.detailType}</p>
-                  </div>
-                </div>
-                <dl className="space-y-2 text-xs text-gray-600">
-                  <div className="flex items-center justify-between">
-                    <dt className="font-medium text-gray-500">{t("shops.fields.type")}</dt>
-                    <dd>{selectedShopDetails.detailType}</dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt className="font-medium text-gray-500">{t("shops.fields.created")}</dt>
-                    <dd>{formatCreatedAt(selectedShop.created_at ?? null)}</dd>
-                  </div>
-                  {selectedShop.notes ? (
-                    <div className="flex flex-col gap-1">
-                      <dt className="font-medium text-gray-500">Notes</dt>
-                      <dd className="whitespace-pre-wrap text-gray-700">{selectedShop.notes}</dd>
+              <div className="w-full sm:max-w-xs">
+                <div className="relative">
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    role="searchbox"
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder={t("shops.filters.searchPlaceholder")}
+                    aria-label={t("shops.filters.searchPlaceholder")}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-16 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  />
+                  {searchTerm ? (
+                    <div className="absolute inset-y-1.5 right-2 flex items-center">
+                      <Tooltip label={t("common.clear")}>
+                        <button
+                          type="button"
+                          onClick={handleSearchClear}
+                          className="inline-flex items-center justify-center rounded-md border border-transparent p-2 text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
+                          aria-label={t("common.clear")}
+                        >
+                          <ClearIcon />
+                        </button>
+                      </Tooltip>
                     </div>
                   ) : null}
-                </dl>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleEditShop(selectedShop)}
-                    className="inline-flex items-center justify-center rounded-md border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-50"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteShop(selectedShop)}
-                    className="inline-flex items-center justify-center rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
-                  >
-                    Delete
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleNavigateToTransactions}
-                    className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
-                  >
-                    Transactions
-                  </button>
                 </div>
               </div>
-            ) : (
-              <p className="text-sm text-gray-500">Select a shop to view details.</p>
-            )}
-          </aside>
-          <div className="flex-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 text-sm text-gray-600">
-              <span>{summaryLabel}</span>
-            </div>
-            <div className="p-4">
-              {filteredShops.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-500">{t("shops.empty")}</p>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                  {filteredShops.map((shop) => {
-                    const typeKey = normalizeType(shop.type);
-                    const displayType = formatTypeLabel(typeKey);
-                    const initials = getInitials(shop.name);
-                    const isActive = shop.id === selectedShopId;
-                    return (
-                      <div
-                        key={shop.id}
-                        className={`flex flex-col gap-4 rounded-lg border px-4 py-4 shadow-sm transition ${
-                          isActive
-                            ? "border-indigo-300 bg-indigo-50/60"
-                            : "border-gray-200 bg-white hover:border-indigo-200 hover:shadow"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`h-12 w-12 overflow-hidden rounded-full border ${
-                                isActive ? "border-indigo-200" : "border-gray-200"
-                              } bg-gray-100`}
-                            >
-                              {shop.image_url ? (
-                                <RemoteImage
-                                  src={shop.image_url}
-                                  alt={shop.name}
-                                  width={48}
-                                  height={48}
-                                  className="h-12 w-12 object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-gray-500">
-                                  {initials}
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <p className="text-sm font-semibold text-gray-900">{shop.name}</p>
-                              <p className="text-xs uppercase tracking-wide text-gray-500">{displayType}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleViewShop(shop)}
-                              className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-indigo-50 hover:text-indigo-700"
-                            >
-                              View
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleEditShop(shop)}
-                              className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-indigo-50 hover:text-indigo-700"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteShop(shop)}
-                              className="inline-flex items-center justify-center rounded-md border border-red-200 bg-white px-2 py-1 text-[11px] font-medium text-red-600 transition hover:bg-red-50"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                        <dl className="space-y-1 text-xs text-gray-600">
-                          <div className="flex items-center justify-between">
-                            <dt className="font-medium text-gray-500">{t("shops.fields.type")}</dt>
-                            <dd>{displayType}</dd>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <dt className="font-medium text-gray-500">{t("shops.fields.created")}</dt>
-                            <dd>{formatCreatedAt(shop.created_at ?? null)}</dd>
-                          </div>
-                        </dl>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           </div>
         </div>
       </div>
+
+      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium text-gray-700">{t("shops.tableHeaders.icon")}</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-700">{t("shops.tableHeaders.name")}</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-700">{t("shops.tableHeaders.type")}</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-700">{t("shops.tableHeaders.created")}</th>
+              <th className="px-4 py-3 text-right font-medium text-gray-700">{t("common.actions")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredShops.map((shop) => {
+              const typeKey = normalizeType(shop.type);
+              const displayType = formatTypeLabel(typeKey);
+              const initials = getInitials(shop.name);
+
+              return (
+                <tr key={shop.id} className="border-b border-gray-200">
+                  <td className="px-4 py-3">
+                    {shop.image_url ? (
+                      <RemoteImage
+                        src={shop.image_url}
+                        alt={shop.name}
+                        width={40}
+                        height={40}
+                        className="h-10 w-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold uppercase text-gray-600">
+                        {initials}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 font-medium text-gray-800">{shop.name}</td>
+                  <td className="px-4 py-3 text-gray-600">{displayType}</td>
+                  <td className="px-4 py-3 text-gray-600">{formatCreatedAt(shop.created_at ?? null)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEditShop(shop)}
+                        className="rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-indigo-50 hover:text-indigo-600"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteShop(shop)}
+                        className="rounded border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+
+            {filteredShops.length === 0 ? (
+              <tr>
+                <td className="px-4 py-6 text-center text-gray-500" colSpan={5}>
+                  {searchTerm.trim() ? t("shops.empty") : t("common.noData")}
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+
       {isAddModalOpen ? (
         <AddShopModal
           onClose={() => setAddModalOpen(false)}
           onCreate={handleCreateShop}
-          onNavigate={handleNavigateToTransactions}
+          onBack={handleModalBack}
+          availableTypes={availableTypes}
+          formatTypeLabel={formatTypeLabel}
         />
       ) : null}
     </div>
@@ -448,14 +340,36 @@ export default function ShopsView({ shops, errorMessage }: ShopsViewProps) {
 
 type AddShopModalProps = {
   onClose: () => void;
-  onCreate: (values: { name: string; type?: string; notes?: string | null }) => void;
-  onNavigate: () => void;
+  onCreate: (values: { name: string; type?: string; notes?: string | null; imageUrl?: string | null }) => void;
+  onBack: () => void;
+  availableTypes: string[];
+  formatTypeLabel: (type: string) => string;
 };
 
-function AddShopModal({ onClose, onCreate, onNavigate }: AddShopModalProps) {
+function AddShopModal({ onClose, onCreate, onBack, availableTypes, formatTypeLabel }: AddShopModalProps) {
+  const t = createTranslator();
   const [name, setName] = useState("");
-  const [type, setType] = useState("");
+  const [selectedType, setSelectedType] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [isAddingType, setIsAddingType] = useState(false);
+  const [customTypeInput, setCustomTypeInput] = useState("");
+  const [customTypes, setCustomTypes] = useState<string[]>([]);
+
+  const mergedTypes = useMemo(() => {
+    const result = new Set<string>();
+    availableTypes.forEach((type) => {
+      if (type) {
+        result.add(type);
+      }
+    });
+    customTypes.forEach((type) => {
+      if (type) {
+        result.add(type);
+      }
+    });
+    return Array.from(result).sort();
+  }, [availableTypes, customTypes]);
 
   const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -464,29 +378,58 @@ function AddShopModal({ onClose, onCreate, onNavigate }: AddShopModalProps) {
       if (!trimmedName) {
         return;
       }
+      const trimmedNotes = notes.trim();
+      const trimmedImage = imageUrl.trim();
       onCreate({
         name: trimmedName,
-        type: type.trim() || undefined,
-        notes: notes.trim() ? notes.trim() : null,
+        type: selectedType ?? undefined,
+        notes: trimmedNotes ? trimmedNotes : null,
+        imageUrl: trimmedImage ? trimmedImage : null,
       });
       setName("");
-      setType("");
+      setSelectedType(null);
       setNotes("");
+      setImageUrl("");
+      setCustomTypeInput("");
+      setCustomTypes([]);
+      setIsAddingType(false);
     },
-    [name, notes, onCreate, type]
+    [imageUrl, name, notes, onCreate, selectedType]
   );
+
+  const handleAddCustomType = useCallback(() => {
+    const trimmed = customTypeInput.trim();
+    if (!trimmed) {
+      return;
+    }
+    const normalized = trimmed.toLowerCase();
+    setCustomTypes((prev) => {
+      if (prev.includes(normalized) || availableTypes.includes(normalized)) {
+        return prev;
+      }
+      return [...prev, normalized];
+    });
+    setSelectedType(normalized);
+    setCustomTypeInput("");
+    setIsAddingType(false);
+  }, [availableTypes, customTypeInput]);
+
+  const handleCancelCustomType = useCallback(() => {
+    setCustomTypeInput("");
+    setIsAddingType(false);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
       <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
       <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-900">Add new shop</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t("shops.modal.addTitle")}</h2>
           <button
             type="button"
             onClick={onClose}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-600 transition hover:bg-gray-100"
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             ×
           </button>
@@ -494,32 +437,93 @@ function AddShopModal({ onClose, onCreate, onNavigate }: AddShopModalProps) {
         <form onSubmit={handleSubmit} className="space-y-4 p-6">
           <div className="space-y-1">
             <label className="text-sm font-medium text-gray-700" htmlFor="shop-name-input">
-              Name
+              {t("shops.fields.name")}
             </label>
             <input
               id="shop-name-input"
               value={name}
               onChange={(event) => setName(event.target.value)}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-              placeholder="Enter shop name"
+              placeholder={t("shops.modal.namePlaceholder")}
               required
             />
           </div>
+
+          <div className="space-y-2">
+            <span className="text-sm font-medium text-gray-700">{t("shops.fields.type")}</span>
+            <div className="flex flex-wrap gap-2">
+              {mergedTypes.map((type) => {
+                const isActive = selectedType === type;
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setSelectedType(type)}
+                    className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+                      isActive
+                        ? "bg-indigo-600 text-white shadow"
+                        : "border border-gray-300 bg-white text-gray-700 hover:border-indigo-300 hover:text-indigo-700"
+                    }`}
+                    aria-pressed={isActive}
+                  >
+                    {formatTypeLabel(type)}
+                  </button>
+                );
+              })}
+              {isAddingType ? (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <input
+                    value={customTypeInput}
+                    onChange={(event) => setCustomTypeInput(event.target.value)}
+                    placeholder={t("shops.typePicker.placeholder")}
+                    className="w-40 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleAddCustomType}
+                      className="rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+                    >
+                      {t("shops.typePicker.save")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelCustomType}
+                      className="rounded-md border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-100"
+                    >
+                      {t("common.cancel")}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingType(true)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-indigo-300 text-xl font-semibold text-indigo-600 transition hover:border-indigo-400 hover:text-indigo-700"
+                  aria-label={t("shops.typePicker.addLabel")}
+                >
+                  +
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700" htmlFor="shop-type-input">
-              Type
+            <label className="text-sm font-medium text-gray-700" htmlFor="shop-image-input">
+              {t("shops.fields.imageUrl")}
             </label>
             <input
-              id="shop-type-input"
-              value={type}
-              onChange={(event) => setType(event.target.value)}
+              id="shop-image-input"
+              value={imageUrl}
+              onChange={(event) => setImageUrl(event.target.value)}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-              placeholder="e.g. ecommerce, bank"
+              placeholder={t("shops.modal.imagePlaceholder")}
             />
           </div>
+
           <div className="space-y-1">
             <label className="text-sm font-medium text-gray-700" htmlFor="shop-notes-input">
-              Notes
+              {t("common.notes")}
             </label>
             <textarea
               id="shop-notes-input"
@@ -527,22 +531,23 @@ function AddShopModal({ onClose, onCreate, onNavigate }: AddShopModalProps) {
               onChange={(event) => setNotes(event.target.value)}
               rows={3}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-              placeholder="Additional details"
+              placeholder={t("shops.modal.notesPlaceholder")}
             />
           </div>
-          <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
+
+          <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-between">
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
+            >
+              {t("common.back")}
+            </button>
             <button
               type="submit"
               className="inline-flex items-center justify-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
             >
-              Create shop
-            </button>
-            <button
-              type="button"
-              onClick={onNavigate}
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
-            >
-              Go to transactions
+              {t("shops.modal.submit")}
             </button>
           </div>
         </form>
