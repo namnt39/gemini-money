@@ -18,7 +18,9 @@ export type CategoryRecord = {
 type CategoriesResult = { categories: CategoryRecord[]; errorMessage?: string };
 
 async function getCategories(): Promise<CategoriesResult> {
-  if (!supabase) {
+  const supabaseClient = supabase;
+
+  if (!supabaseClient) {
     const message =
       supabaseConfigurationError?.message ?? "Supabase client is not configured.";
     console.error("Unable to fetch subcategories:", message);
@@ -26,11 +28,11 @@ async function getCategories(): Promise<CategoriesResult> {
   }
 
   const [{ data, error }, { data: categories, error: categoriesError }] = await Promise.all([
-    supabase
+    supabaseClient
       .from("subcategories")
       .select("id, name, image_url, transaction_nature, category_id, categories(id, name, transaction_nature)")
       .order("name", { ascending: true }),
-    supabase
+    supabaseClient
       .from("categories")
       .select("id, name, image_url, transaction_nature")
       .order("name", { ascending: true }),

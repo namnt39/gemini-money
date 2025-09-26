@@ -54,7 +54,9 @@ export default async function Home() {
   let transactionsData: TransactionRecord[] | null = null;
   let errorMessage: string | undefined;
 
-  if (!supabase) {
+  const supabaseClient = supabase;
+
+  if (!supabaseClient) {
     const fallback = buildFallbackDashboard(supabaseConfigurationError?.message);
     accountsData = fallback.accounts;
     transactionsData = fallback.transactions;
@@ -63,8 +65,8 @@ export default async function Home() {
   } else {
     const [{ data: accountResponse, error: accountsError }, { data: transactionResponse, error: transactionsError }] =
       await Promise.all([
-        supabase.from("accounts").select(),
-        supabase
+        supabaseClient.from("accounts").select(),
+        supabaseClient
           .from("transactions")
           .select(`
         amount,
