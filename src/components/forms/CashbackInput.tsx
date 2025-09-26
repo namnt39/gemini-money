@@ -198,7 +198,7 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
           setLastEdited("amount");
         } else {
           setLastEdited(null);
-          onCashbackChange({ percent: 0, amount: 0 });
+          onCashbackChange({ percent: 0, amount: 0, source: null });
         }
       }
       return;
@@ -218,7 +218,7 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
           setLastEdited("percent");
         } else {
           setLastEdited(null);
-          onCashbackChange({ percent: 0, amount: 0 });
+          onCashbackChange({ percent: 0, amount: 0, source: null });
         }
       }
       return;
