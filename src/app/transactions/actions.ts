@@ -50,11 +50,10 @@ type TransactionData = {
 type UpdateTransactionInput = TransactionData & { id: string };
 
 async function persistTransaction(data: TransactionData, options: { id?: string } = {}) {
-  const supabaseResolution = resolveSupabaseClient();
-  if (!supabaseResolution.supabaseClient) {
-    return { success: false, message: supabaseResolution.errorMessage };
+  const { supabaseClient, errorMessage } = resolveSupabaseClient();
+  if (!supabaseClient) {
+    return { success: false, message: errorMessage ?? SUPABASE_UNAVAILABLE_MESSAGE };
   }
-  const supabaseClient = supabaseResolution.supabaseClient;
 
   if (!data.amount || data.amount <= 0) {
     return { success: false, message: "Invalid amount." };
@@ -255,11 +254,10 @@ export async function deleteTransaction(transactionId: string) {
     return { success: false, message: "Missing transaction identifier." };
   }
 
-  const supabaseResolution = resolveSupabaseClient();
-  if (!supabaseResolution.supabaseClient) {
-    return { success: false, message: supabaseResolution.errorMessage };
+  const { supabaseClient, errorMessage } = resolveSupabaseClient();
+  if (!supabaseClient) {
+    return { success: false, message: errorMessage ?? SUPABASE_UNAVAILABLE_MESSAGE };
   }
-  const supabaseClient = supabaseResolution.supabaseClient;
 
   const { error } = await supabaseClient
     .from("transactions")
@@ -281,11 +279,10 @@ export async function deleteTransactions(transactionIds: string[]) {
     return { success: false, message: "No transactions selected." };
   }
 
-  const supabaseResolution = resolveSupabaseClient();
-  if (!supabaseResolution.supabaseClient) {
-    return { success: false, message: supabaseResolution.errorMessage };
+  const { supabaseClient, errorMessage } = resolveSupabaseClient();
+  if (!supabaseClient) {
+    return { success: false, message: errorMessage ?? SUPABASE_UNAVAILABLE_MESSAGE };
   }
-  const supabaseClient = supabaseResolution.supabaseClient;
 
   const { error } = await supabaseClient
     .from("transactions")
