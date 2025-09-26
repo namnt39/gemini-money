@@ -1227,71 +1227,7 @@ export default function TransactionsView({
             <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{errorMessage}</div>
           )}
           <div className="flex flex-col gap-4 border-b border-gray-200 bg-gray-50 px-4 py-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div className="flex w-full flex-col gap-3 md:flex-row md:items-start md:gap-4">
-                <div className="w-full md:max-w-xs">
-                  <div className="relative">
-                    <input
-                      ref={searchInputRef}
-                      type="text"
-                      role="searchbox"
-                      value={searchValue}
-                      onChange={(event) => setSearchValue(event.target.value)}
-                      placeholder={t("common.searchPlaceholder")}
-                      aria-label={t("common.searchPlaceholder")}
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-16 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    />
-                    {searchValue ? (
-                      <div className="absolute inset-y-1.5 right-2 flex items-center">
-                        <Tooltip label={t("common.clear")}>
-                          <button
-                            type="button"
-                            onClick={handleSearchClear}
-                            className="inline-flex items-center justify-center rounded-md border border-transparent p-2 text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
-                            aria-label={t("common.clear")}
-                          >
-                            <ClearIcon />
-                          </button>
-                        </Tooltip>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="flex flex-col items-stretch gap-2 md:w-auto">
-                  <Tooltip label={t("transactions.actions.addTooltip")}>
-                    <button
-                      type="button"
-                      onClick={handleOpenAddModal}
-                      className="inline-flex items-center justify-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-                    >
-                      <PlusIcon />
-                      {t("transactions.addButton")}
-                    </button>
-                  </Tooltip>
-                  {shouldShowSelectedToggle ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowSelectedOnly((prev) => !prev)}
-                      className={`${
-                        showSelectedOnly
-                          ? "inline-flex items-center gap-2 rounded-full border border-indigo-600 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm"
-                          : "inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
-                      }`}
-                      aria-pressed={showSelectedOnly}
-                    >
-                      <CheckCircleIcon active={showSelectedOnly} />
-                      <span>{t("transactions.filters.showOnlySelected")}</span>
-                      {selectedIds.size > 0 ? (
-                        <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">
-                          {selectedIds.size}
-                        </span>
-                      ) : null}
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap items-center gap-2">
                 {natureTabs.map((tab) => {
                   const palette = natureTabPalette[tab.value];
@@ -1321,8 +1257,72 @@ export default function TransactionsView({
                     <span aria-hidden="true">×</span>
                   </button>
                 )}
-                <DeleteSelectedButton selectedIds={selectedIdsArray} onDeleted={clearSelection} />
-                {selectedIdsArray.length > 0 && (
+              </div>
+              <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3 lg:w-auto">
+                <Tooltip label={t("transactions.actions.addTooltip")}>
+                  <button
+                    type="button"
+                    onClick={handleOpenAddModal}
+                    className="inline-flex items-center justify-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+                  >
+                    <PlusIcon />
+                    {t("transactions.addButton")}
+                  </button>
+                </Tooltip>
+                <div className="relative w-full sm:w-72 md:w-80 lg:w-96">
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    role="searchbox"
+                    value={searchValue}
+                    onChange={(event) => setSearchValue(event.target.value)}
+                    placeholder={t("common.searchPlaceholder")}
+                    aria-label={t("common.searchPlaceholder")}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-16 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  />
+                  {searchValue ? (
+                    <div className="absolute inset-y-1.5 right-2 flex items-center">
+                      <Tooltip label={t("common.clear")}>
+                        <button
+                          type="button"
+                          onClick={handleSearchClear}
+                          className="inline-flex items-center justify-center rounded-md border border-transparent p-2 text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
+                          aria-label={t("common.clear")}
+                        >
+                          <ClearIcon />
+                        </button>
+                      </Tooltip>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+            {selectedIdsArray.length > 0 ? (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                  {shouldShowSelectedToggle ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowSelectedOnly((prev) => !prev)}
+                      className={`${
+                        showSelectedOnly
+                          ? "inline-flex items-center gap-2 rounded-full border border-indigo-600 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm"
+                          : "inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                      }`}
+                      aria-pressed={showSelectedOnly}
+                    >
+                      <CheckCircleIcon active={showSelectedOnly} />
+                      <span>{t("transactions.filters.showOnlySelected")}</span>
+                      {selectedIds.size > 0 ? (
+                        <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">
+                          {selectedIds.size}
+                        </span>
+                      ) : null}
+                    </button>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <DeleteSelectedButton selectedIds={selectedIdsArray} onDeleted={clearSelection} />
                   <button
                     type="button"
                     onClick={handleDeselectAll}
@@ -1330,44 +1330,44 @@ export default function TransactionsView({
                   >
                     {t("transactions.actions.deselect")}
                   </button>
-                )}
+                </div>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <Tooltip
-                  label={
+            ) : null}
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <Tooltip
+                label={
+                  isCustomizingTable
+                    ? t("transactions.table.doneCustomizing")
+                    : t("transactions.table.customize")
+                }
+              >
+                <button
+                  type="button"
+                  onClick={toggleCustomization}
+                  className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition ${
+                    isCustomizingTable
+                      ? "border-indigo-500 bg-indigo-600 text-white shadow"
+                      : "border-gray-300 bg-white text-gray-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                  }`}
+                  aria-pressed={isCustomizingTable}
+                  aria-label={
                     isCustomizingTable
                       ? t("transactions.table.doneCustomizing")
                       : t("transactions.table.customize")
                   }
                 >
-                  <button
-                    type="button"
-                    onClick={toggleCustomization}
-                    className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition ${
-                      isCustomizingTable
-                        ? "border-indigo-500 bg-indigo-600 text-white shadow"
-                        : "border-gray-300 bg-white text-gray-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
-                    }`}
-                    aria-pressed={isCustomizingTable}
-                    aria-label={
-                      isCustomizingTable
-                        ? t("transactions.table.doneCustomizing")
-                        : t("transactions.table.customize")
-                    }
-                  >
-                    <ColumnsIcon active={isCustomizingTable} />
-                  </button>
-                </Tooltip>
-                {isCustomizingTable && (
-                  <button
-                    type="button"
-                    onClick={handleResetLayout}
-                    className="inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
-                  >
-                    {t("transactions.table.resetLayout")}
-                  </button>
-                )}
-              </div>
+                  <ColumnsIcon active={isCustomizingTable} />
+                </button>
+              </Tooltip>
+              {isCustomizingTable && (
+                <button
+                  type="button"
+                  onClick={handleResetLayout}
+                  className="inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
+                >
+                  {t("transactions.table.resetLayout")}
+                </button>
+              )}
             </div>
           </div>
 
