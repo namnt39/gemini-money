@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Account, Subcategory, Person } from "./page";
+import { Account, Subcategory, Person } from "./formData";
 import { createTransaction } from "../actions";
 import AmountInput from "@/components/forms/AmountInput";
 import CustomSelect from "@/components/forms/CustomSelect";
@@ -21,6 +21,8 @@ type TransactionFormProps = {
   returnTo: string;
   createdSubcategoryId?: string;
   initialTab?: Tab;
+  onClose?: () => void;
+  layout?: "page" | "modal";
 };
 type CashbackInfo = { percent: number; amount: number; source: CashbackSource };
 type CashbackSource = "percent" | "amount" | null;
@@ -95,6 +97,8 @@ export default function TransactionForm({
   returnTo,
   createdSubcategoryId,
   initialTab,
+  onClose,
+  layout = "page",
 }: TransactionFormProps) {
   const t = createTranslator();
   const router = useRouter();
@@ -206,28 +210,6 @@ export default function TransactionForm({
     }
   }, [fromAccountId, accounts]);
 
-  useEffect(() => {
-    if (!shouldShowShopSection) {
-      if (shopId) {
-        setShopId("");
-      }
-      if (activeShopTab !== "shop") {
-        setActiveShopTab("shop");
-      }
-    }
-  }, [shouldShowShopSection, shopId, activeShopTab]);
-
-  useEffect(() => {
-    if (activeTab !== "debt") {
-      return;
-    }
-    if (debtMode === "lend") {
-      setToAccountId("");
-    } else {
-      setFromAccountId("");
-    }
-  }, [activeTab, debtMode]);
-
   const getTransactionNature = useCallback((sub: Subcategory): TransactionNatureCode | null => {
     const direct = normalizeTransactionNature(sub.transaction_nature ?? null);
     if (direct) {
@@ -318,6 +300,28 @@ export default function TransactionForm({
     return false;
   }, [activeTab, isShopCategory]);
 
+  useEffect(() => {
+    if (!shouldShowShopSection) {
+      if (shopId) {
+        setShopId("");
+      }
+      if (activeShopTab !== "shop") {
+        setActiveShopTab("shop");
+      }
+    }
+  }, [shouldShowShopSection, shopId, activeShopTab]);
+
+  useEffect(() => {
+    if (activeTab !== "debt") {
+      return;
+    }
+    if (debtMode === "lend") {
+      setToAccountId("");
+    } else {
+      setFromAccountId("");
+    }
+  }, [activeTab, debtMode]);
+
   const addCategoryLabel = useMemo(() => {
     switch (activeTab) {
       case "income":
@@ -368,8 +372,11 @@ export default function TransactionForm({
       sessionStorage.removeItem(STORAGE_KEY);
       sessionStorage.removeItem(PRESERVE_KEY);
     }
+    if (onClose) {
+      onClose();
+    }
     navigate(returnTo);
-  }, [navigate, returnTo]);
+  }, [navigate, onClose, returnTo]);
 
   const isDirty = useMemo(() => {
     const snapshot = initialSnapshotRef.current;
@@ -493,9 +500,34 @@ export default function TransactionForm({
     };
   }, []);
 
+  const formClasses =
+    layout === "modal"
+      ? "flex h-full flex-col overflow-hidden"
+      : "overflow-hidden rounded-lg border border-gray-200 shadow-sm";
+
+  const contentWrapperClasses = layout === "modal" ? "flex-1 overflow-y-auto bg-white p-6" : "space-y-6 bg-white p-6";
+
   return (
-    <form onSubmit={handleSubmit} className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-gray-200 bg-gray-50 px-6 py-4 md:flex-row md:items-center md:justify-between">
+    <form onSubmit={handleSubmit} className={formClasses}>
+      {layout === "modal" ? (
+        <div className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+          <button
+            type="button"
+            onClick={handleBack}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 text-gray-600 transition hover:bg-gray-100"
+            aria-label={t("common.close")}
+          >
+            <CloseIcon />
+          </button>
+          <h2 className="text-lg font-semibold text-gray-900">{t("transactionForm.title")}</h2>
+          <span className="h-9 w-9" aria-hidden="true" />
+        </div>
+      ) : null}
+      <div
+        className={`flex flex-col gap-3 border-b border-gray-200 bg-gray-50 px-6 py-4 md:flex-row md:items-center md:justify-between ${
+          layout === "modal" ? "" : ""
+        }`}
+      >
         <div className="grid flex-1 grid-cols-2 gap-2 md:grid-cols-4">
           <TabButton title={t("transactionForm.tabs.expense")} active={activeTab === "expense"} color={tabColors.expense} onClick={() => setActiveTab("expense")} />
           <TabButton title={t("transactionForm.tabs.income")} active={activeTab === "income"} color={tabColors.income} onClick={() => setActiveTab("income")} />
@@ -504,7 +536,7 @@ export default function TransactionForm({
         </div>
       </div>
 
-      <div className="space-y-6 bg-white p-6">
+      <div className={contentWrapperClasses + (layout === "modal" ? " space-y-6" : "")}>
         <div className="grid gap-6 md:grid-cols-2">
           <AmountInput value={amount} onChange={setAmount} />
           <div>
@@ -730,7 +762,11 @@ export default function TransactionForm({
           />
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-gray-200 pt-4 md:flex-row md:items-center md:justify-between">
+        <div
+          className={`flex flex-col gap-3 border-t border-gray-200 px-6 py-4 md:flex-row md:items-center md:justify-between ${
+            layout === "modal" ? "bg-white" : "bg-gray-50 pt-4"
+          }`}
+        >
           <button
             type="button"
             onClick={handleBack}
@@ -772,5 +808,18 @@ const ArrowLeftIcon = () => (
   >
     <path d="M12.5 5 7.5 10l5 5" strokeLinecap="round" strokeLinejoin="round" />
     <path d="M12.5 10H4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const CloseIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 20 20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    className="h-5 w-5"
+  >
+    <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );

@@ -12,6 +12,8 @@ import { createTranslator } from "@/lib/i18n";
 import { numberToVietnameseWords } from "@/lib/numberToVietnameseWords";
 import { deleteTransaction, deleteTransactions } from "./actions";
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "./constants";
+import TransactionForm from "./add/TransactionForm";
+import type { Account, Subcategory, Person } from "./add/formData";
 
 import type { AccountRecord, TransactionFilters, TransactionListItem } from "./types";
 
@@ -21,6 +23,9 @@ type TransactionsViewProps = {
   accounts: AccountRecord[];
   filters: TransactionFilters;
   errorMessage?: string;
+  formAccounts: Account[];
+  formSubcategories: Subcategory[];
+  formPeople: Person[];
 };
 
 type NatureTab = {
@@ -176,6 +181,8 @@ type DataColumn = {
   summary?: (summary: SelectedSummary) => ReactNode;
 };
 
+type FormTab = "expense" | "income" | "transfer" | "debt";
+
 const computePercentAmount = (amount?: number | null, percent?: number | null) => {
   if (amount == null || percent == null) {
     return null;
@@ -225,19 +232,58 @@ const buildCashbackDisplay = (transaction: TransactionListItem) => {
   };
 };
 
+const PlusIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 20 20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.6}
+    className="h-4 w-4"
+  >
+    <path d="M10 4v12M4 10h12" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const CheckCircleIcon = ({ active }: { active: boolean }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 20 20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.6}
+    className={`h-4 w-4 ${active ? "text-indigo-600" : "text-gray-400"}`}
+  >
+    <circle cx="10" cy="10" r="7" strokeOpacity={active ? 1 : 0.6} />
+    {active ? <path d="M7.5 10.5 9.5 12.5 12.5 7.5" strokeLinecap="round" strokeLinejoin="round" /> : null}
+  </svg>
+);
+
+const ColumnsIcon = ({ active }: { active: boolean }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.6}
+    className="h-5 w-5"
+  >
+    <rect x="3.5" y="5" width="17" height="14" rx="2" fill={active ? "currentColor" : "none"} fillOpacity={active ? 0.15 : 0} />
+    <path d="M9 5v14M15 5v14" strokeLinecap="round" />
+  </svg>
+);
+
 const PencilIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 20 20"
-    fill="currentColor"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.6}
     className="h-4 w-4"
   >
-    <path d="M17.414 2.586a2 2 0 0 0-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 0 0 0-2.828Z" />
-    <path
-      fillRule="evenodd"
-      d="M5 6a1 1 0 0 1 1-1h2.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 0 1.414l-5.414 5.414A1 1 0 0 1 8.586 18H7a1 1 0 0 1-1-1V6Z"
-      clipRule="evenodd"
-    />
+    <path d="M4 13.5V16h2.5l7.06-7.06a1.5 1.5 0 0 0-2.12-2.12L4 13.5Z" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M11.5 5.5 14 8" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -289,7 +335,7 @@ function ActionButtons({ transactionId }: ActionButtonsProps) {
         <button
           type="button"
           onClick={handleEdit}
-          className="rounded border border-gray-300 bg-white p-2 text-gray-600 transition hover:bg-indigo-50 hover:text-indigo-700"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-600 transition hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1"
           aria-label={t("transactions.actions.editTooltip")}
         >
           <PencilIcon />
@@ -300,7 +346,7 @@ function ActionButtons({ transactionId }: ActionButtonsProps) {
           type="button"
           onClick={handleDelete}
           disabled={isPending}
-          className="rounded border border-gray-300 bg-white p-2 text-red-600 transition hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 bg-white text-red-600 transition hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60"
           aria-label={t("transactions.actions.deleteTooltip")}
         >
           <TrashIcon />
@@ -358,7 +404,16 @@ function DeleteSelectedButton({ selectedIds, onDeleted }: DeleteSelectedButtonPr
   );
 }
 
-export default function TransactionsView({ transactions, totalCount, accounts, filters, errorMessage }: TransactionsViewProps) {
+export default function TransactionsView({
+  transactions,
+  totalCount,
+  accounts,
+  filters,
+  errorMessage,
+  formAccounts,
+  formSubcategories,
+  formPeople,
+}: TransactionsViewProps) {
   const t = createTranslator();
   const router = useRouter();
   const pathname = usePathname();
@@ -378,6 +433,8 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
   const [showLoading, setShowLoading] = useState(false);
   const [searchValue, setSearchValue] = useState(filters.searchTerm);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [isAddModalOpen, setAddModalOpen] = useState(false);
+  const [modalInitialTab, setModalInitialTab] = useState<FormTab>("expense");
   const defaultTemporalValues = useMemo(() => {
     const now = new Date();
     const month = now.getMonth() + 1;
@@ -787,6 +844,26 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
   const allVisibleSelected =
     visibleTransactions.length > 0 && visibleTransactions.every((transaction) => selectedIds.has(transaction.id));
 
+  const handleOpenAddModal = useCallback(() => {
+    let initialTab: FormTab = "expense";
+    if (filters.nature === "income") {
+      initialTab = "income";
+    } else if (filters.nature === "transfer") {
+      initialTab = "transfer";
+    }
+    setModalInitialTab(initialTab);
+    setAddModalOpen(true);
+  }, [filters.nature]);
+
+  const handleCloseAddModal = useCallback(() => {
+    setAddModalOpen(false);
+  }, []);
+
+  const currentReturnPath = useMemo(() => {
+    const query = searchParams.toString();
+    return query ? `${pathname}?${query}` : pathname;
+  }, [pathname, searchParams]);
+
   const isResetDisabled = useMemo(() => {
     const isMonthDefault =
       typeof filters.month === "number" && filters.month === defaultTemporalValues.month;
@@ -1104,7 +1181,7 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
           )}
           <div className="flex flex-col gap-4 border-b border-gray-200 bg-gray-50 px-4 py-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="w-full md:max-w-sm md:flex-1">
+              <div className="w-full md:max-w-lg md:flex-1">
                 <div className="relative">
                   <input
                     ref={searchInputRef}
@@ -1127,16 +1204,39 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                   ) : null}
                 </div>
               </div>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSelectedOnly((prev) => !prev)}
+                  className={`${
+                    showSelectedOnly
+                      ? "inline-flex items-center gap-2 rounded-full border border-indigo-600 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm"
+                      : "inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                  } ${selectedIds.size === 0 && !showSelectedOnly ? "opacity-70" : ""}`}
+                  aria-pressed={showSelectedOnly}
+                  disabled={selectedIds.size === 0 && !showSelectedOnly}
+                >
+                  <CheckCircleIcon active={showSelectedOnly} />
+                  <span>{t("transactions.filters.showOnlySelected")}</span>
+                  {selectedIds.size > 0 ? (
+                    <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">
+                      {selectedIds.size}
+                    </span>
+                  ) : null}
+                </button>
+              </div>
             </div>
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-wrap items-center gap-2">
                 <Tooltip label={t("transactions.actions.addTooltip")}>
-                  <Link
-                    href="/transactions/add"
+                  <button
+                    type="button"
+                    onClick={handleOpenAddModal}
                     className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
                   >
+                    <PlusIcon />
                     {t("transactions.addButton")}
-                  </Link>
+                  </button>
                 </Tooltip>
                 {natureTabs.map((tab) => {
                   const palette = natureTabPalette[tab.value];
@@ -1178,34 +1278,31 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <label className="flex items-center gap-2 text-sm text-gray-600" htmlFor="page-size">
-                  {t("transactions.filters.pageSize")}
-                  <select
-                    id="page-size"
-                    className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    value={filters.pageSize}
-                    onChange={(event) => updateFilters({ pageSize: event.target.value })}
-                  >
-                    {PAGE_SIZE_OPTIONS.map((size) => (
-                      <option key={size} value={size}>
-                        {size}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  onClick={toggleCustomization}
-                  className={`inline-flex items-center gap-2 rounded border px-3 py-2 text-sm font-medium transition ${
+                <Tooltip
+                  label={
                     isCustomizingTable
-                      ? "border-indigo-500 bg-indigo-600 text-white shadow"
-                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-                  }`}
+                      ? t("transactions.table.doneCustomizing")
+                      : t("transactions.table.customize")
+                  }
                 >
-                  {isCustomizingTable
-                    ? t("transactions.table.doneCustomizing")
-                    : t("transactions.table.customize")}
-                </button>
+                  <button
+                    type="button"
+                    onClick={toggleCustomization}
+                    className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition ${
+                      isCustomizingTable
+                        ? "border-indigo-500 bg-indigo-600 text-white shadow"
+                        : "border-gray-300 bg-white text-gray-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                    }`}
+                    aria-pressed={isCustomizingTable}
+                    aria-label={
+                      isCustomizingTable
+                        ? t("transactions.table.doneCustomizing")
+                        : t("transactions.table.customize")
+                    }
+                  >
+                    <ColumnsIcon active={isCustomizingTable} />
+                  </button>
+                </Tooltip>
                 {isCustomizingTable && (
                   <button
                     type="button"
@@ -1215,15 +1312,6 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                     {t("transactions.table.resetLayout")}
                   </button>
                 )}
-                <label className="flex items-center gap-2 text-sm text-gray-600">
-                  <input
-                    type="checkbox"
-                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                    checked={showSelectedOnly}
-                    onChange={(event) => setShowSelectedOnly(event.target.checked)}
-                  />
-                  {t("transactions.filters.showOnlySelected")}
-                </label>
               </div>
             </div>
           </div>
@@ -1253,7 +1341,7 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                     return (
                       <th
                         key={column.id}
-                        className={`px-4 py-3 text-left font-medium text-gray-700 ${borderClass} ${
+                        className={`relative px-4 py-3 text-left font-medium text-gray-700 ${borderClass} ${
                           isCustomizingTable ? "cursor-move select-none" : ""
                         }`}
                         style={{ width, minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
@@ -1263,19 +1351,14 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
                         onDrop={(event) => handleDrop(event, column.id)}
                         onDragEnd={handleDragEnd}
                       >
-                        <div className="flex items-center gap-2">
-                          <span className={`flex-1 ${column.align === "right" ? "text-right" : ""}`}>
-                            {column.label}
-                          </span>
-                          <span
-                            role="separator"
-                            aria-hidden="true"
-                            onMouseDown={(event) => handleResizeStart(event, column.id)}
-                            className={`h-5 w-1 cursor-col-resize rounded transition-colors ${
-                              isCustomizingTable ? "bg-indigo-300" : "bg-gray-300 hover:bg-indigo-300"
-                            }`}
-                          />
-                        </div>
+                        <span className={`block ${column.align === "right" ? "text-right" : ""}`}>{column.label}</span>
+                        <span
+                          role="separator"
+                          aria-hidden="true"
+                          onMouseDown={(event) => handleResizeStart(event, column.id)}
+                          className="absolute top-0 h-full w-3 cursor-col-resize"
+                          style={{ right: -6 }}
+                        />
                       </th>
                     );
                   })}
@@ -1373,34 +1456,102 @@ export default function TransactionsView({ transactions, totalCount, accounts, f
             </table>
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-600 md:flex-row md:items-center md:justify-between">
-            <span>
-              {t("transactions.pagination.pageLabel")} {filters.page} {t("transactions.pagination.of")} {totalPages}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handlePageChange(filters.page - 1)}
-                disabled={filters.page <= 1}
-                className="rounded-md border border-gray-300 bg-white px-3 py-2 font-medium text-gray-700 shadow-sm transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {t("transactions.pagination.previous")}
-              </button>
-              <button
-                type="button"
-                onClick={() => handlePageChange(filters.page + 1)}
-                disabled={filters.page >= totalPages}
-                className="rounded-md border border-gray-300 bg-white px-3 py-2 font-medium text-gray-700 shadow-sm transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {t("transactions.pagination.next")}
-              </button>
+          <div className="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-600">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <span>
+                {t("transactions.pagination.pageLabel")} {filters.page} {t("transactions.pagination.of")} {totalPages}
+              </span>
+              <div className="flex items-center justify-center gap-3 md:justify-end">
+                <Tooltip label={t("transactions.pagination.previous")}> 
+                  <button
+                    type="button"
+                    onClick={() => handlePageChange(filters.page - 1)}
+                    disabled={filters.page <= 1}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-600 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label={t("transactions.pagination.previous")}
+                  >
+                    <ChevronLeftIcon />
+                  </button>
+                </Tooltip>
+                <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 shadow-sm">
+                  <span className="text-xs uppercase tracking-wide text-gray-500">
+                    {t("transactions.filters.pageSize")}
+                  </span>
+                  <select
+                    id="page-size"
+                    className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    value={filters.pageSize}
+                    onChange={(event) => updateFilters({ pageSize: event.target.value })}
+                    aria-label={t("transactions.filters.pageSize")}
+                  >
+                    {PAGE_SIZE_OPTIONS.map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Tooltip label={t("transactions.pagination.next")}> 
+                  <button
+                    type="button"
+                    onClick={() => handlePageChange(filters.page + 1)}
+                    disabled={filters.page >= totalPages}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-600 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label={t("transactions.pagination.next")}
+                  >
+                    <ChevronRightIcon />
+                  </button>
+                </Tooltip>
+              </div>
             </div>
           </div>
-        </div>
       </div>
     </div>
+    {isAddModalOpen ? (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
+        <div className="absolute inset-0" aria-hidden="true" />
+        <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <TransactionForm
+            accounts={formAccounts}
+            subcategories={formSubcategories}
+            people={formPeople}
+            returnTo={currentReturnPath}
+            initialTab={modalInitialTab}
+            onClose={handleCloseAddModal}
+            layout="modal"
+          />
+        </div>
+      </div>
+    ) : null}
+  </div>
   );
 }
+const ChevronLeftIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 20 20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    className="h-4 w-4"
+  >
+    <path d="M11.5 5.5 7.5 10l4 4.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const ChevronRightIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 20 20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    className="h-4 w-4"
+  >
+    <path d="M8.5 5.5 12.5 10l-4 4.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const ChevronDownIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"

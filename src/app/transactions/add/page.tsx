@@ -1,144 +1,7 @@
-import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
-import { createTranslator } from "@/lib/i18n";
 import TransactionForm from "./TransactionForm";
-import { getMockTransactionFormData } from "@/data/mockData";
-import { normalizeTransactionNature } from "@/lib/transactionNature";
+import { loadTransactionFormData } from "./formData";
 
-export type Account = {
-  id: string;
-  name: string;
-  image_url: string | null;
-  type: string | null;
-  is_cashback_eligible: boolean | null;
-  cashback_percentage: number | null;
-  max_cashback_amount: number | null;
-};
-type CategoryInfo = {
-  name: string;
-  transaction_nature: string;
-};
-
-export type Subcategory = {
-  id: string;
-  name: string;
-  image_url: string | null;
-  transaction_nature?: string | null;
-  categories: CategoryInfo[] | CategoryInfo | null;
-  is_shop?: boolean | null;
-};
-type CategoryRecord = {
-  id: string;
-  name: string;
-  transaction_nature: string;
-  image_url?: string | null;
-};
-
-export type Person = {
-  id: string;
-  name: string;
-  image_url: string | null;
-  is_group: boolean | null;
-};
-
-async function getFormData() {
-  if (!isSupabaseConfigured || !supabase) {
-    const { accounts, subcategories, people } = getMockTransactionFormData();
-    return {
-      accounts: accounts.map((account) => ({
-        id: account.id,
-        name: account.name,
-        image_url: account.image_url,
-        type: account.type,
-        is_cashback_eligible: account.is_cashback_eligible,
-        cashback_percentage: account.cashback_percentage,
-        max_cashback_amount: account.max_cashback_amount,
-      })),
-      subcategories: subcategories.map((subcategory) => ({
-        id: subcategory.id,
-        name: subcategory.name,
-        image_url: subcategory.image_url,
-        transaction_nature: normalizeTransactionNature(subcategory.transaction_nature ?? null) ?? null,
-        is_shop: subcategory.is_shop ?? false,
-        categories: Array.isArray(subcategory.categories)
-          ? subcategory.categories.map((category) => ({
-              ...category,
-              transaction_nature: normalizeTransactionNature(category.transaction_nature ?? null) ?? null,
-            }))
-          : subcategory.categories
-            ? {
-                ...subcategory.categories,
-                transaction_nature:
-                  normalizeTransactionNature(subcategory.categories.transaction_nature ?? null) ?? null,
-              }
-            : null,
-      })),
-      people: people.map((person) => ({
-        id: person.id,
-        name: person.name,
-        image_url: person.image_url,
-        is_group: person.is_group,
-      })),
-    };
-  }
-
-  const accountsPromise = supabase
-    .from("accounts")
-    .select("id, name, image_url, type, is_cashback_eligible, cashback_percentage, max_cashback_amount");
-  const subcategoriesPromise = supabase
-    .from("subcategories")
-    .select("id, name, image_url, is_shop, categories(name, transaction_nature)");
-  const peoplePromise = supabase.from("people").select("id, name, image_url, is_group");
-  const categoriesPromise = supabase.from("categories").select("id, name, transaction_nature, image_url");
-
-  const [
-    { data: accounts, error: accountsError },
-    { data: subcategories, error: subcategoriesError },
-    { data: people, error: peopleError },
-    { data: categories, error: categoriesError },
-  ] = await Promise.all([accountsPromise, subcategoriesPromise, peoplePromise, categoriesPromise]);
-
-  if (accountsError) {
-    console.error("Failed to fetch accounts:", accountsError);
-  }
-  if (subcategoriesError) {
-    console.error("Failed to fetch subcategories:", subcategoriesError);
-  }
-  if (peopleError) {
-    console.error("Failed to fetch people:", peopleError);
-  }
-  if (categoriesError) {
-    console.error("Failed to fetch categories:", categoriesError);
-  }
-
-  const typedSubcategories = (subcategories as Subcategory[]) || [];
-  const typedCategories = (categories as CategoryRecord[] | null) || [];
-
-  const existingIds = new Set(typedSubcategories.map((item) => item.id));
-  const missingCategories = typedCategories.filter((category) => !existingIds.has(category.id));
-
-  const synthesizedSubcategories = missingCategories.map((category) => {
-    const normalizedNature = normalizeTransactionNature(category.transaction_nature ?? null) ?? null;
-    return {
-      id: category.id,
-      name: category.name,
-      image_url: category.image_url ?? null,
-      transaction_nature: normalizedNature,
-      is_shop: false,
-      categories: [
-        {
-          name: category.name,
-          transaction_nature: normalizedNature,
-        },
-      ],
-    };
-  });
-
-  return {
-    accounts: (accounts as Account[]) || [],
-    subcategories: [...typedSubcategories, ...synthesizedSubcategories],
-    people: (people as Person[]) || [],
-  };
-}
+export { type Account, type Subcategory, type Person } from "./formData";
 
 const DEFAULT_RETURN_PATH = "/transactions";
 
@@ -170,9 +33,8 @@ type AddTransactionPageProps = {
 };
 
 export default async function AddTransactionPage({ searchParams }: AddTransactionPageProps) {
-  const t = createTranslator();
   const params = await resolveSearchParams(searchParams);
-  const { accounts, subcategories, people } = await getFormData();
+  const { accounts, subcategories, people } = await loadTransactionFormData();
   const createdSubcategoryId = typeof params.createdSubcategoryId === "string" ? params.createdSubcategoryId : undefined;
   const tabParam = typeof params.tab === "string" ? params.tab.toLowerCase() : undefined;
   const initialTab =
@@ -182,9 +44,9 @@ export default async function AddTransactionPage({ searchParams }: AddTransactio
   const returnTo = normalizeReturnPath(params.returnTo);
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">{t("transactionForm.title")}</h1>
-      <div className="bg-white rounded-lg shadow-md">
+    <div className="fixed inset-0 z-50 flex min-h-screen w-full items-center justify-center bg-slate-950/40 px-4 py-6">
+      <div className="absolute inset-0" aria-hidden="true" />
+      <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
         <TransactionForm
           accounts={accounts}
           subcategories={subcategories}
@@ -192,6 +54,7 @@ export default async function AddTransactionPage({ searchParams }: AddTransactio
           returnTo={returnTo}
           createdSubcategoryId={createdSubcategoryId}
           initialTab={initialTab}
+          layout="modal"
         />
       </div>
     </div>
