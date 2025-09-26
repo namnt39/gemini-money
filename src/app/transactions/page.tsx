@@ -5,6 +5,7 @@ import { getDatabaseNatureCandidates, normalizeTransactionNature } from "@/lib/t
 
 import TransactionsView from "./TransactionsView";
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS, natureCodeMap } from "./constants";
+import { loadTransactionFormData } from "./add/formData";
 
 import type {
   AccountRecord,
@@ -296,9 +297,10 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
   const filters = sanitizeFilters(resolvedParams);
   const t = createTranslator();
 
-  const [transactionsResult, accountsResult] = await Promise.all([
+  const [transactionsResult, accountsResult, formData] = await Promise.all([
     fetchTransactions(filters),
     fetchAccounts(),
+    loadTransactionFormData(),
   ]);
 
   const combinedError = transactionsResult.errorMessage || accountsResult.errorMessage;
@@ -315,6 +317,9 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
         accounts={accountsResult.accounts}
         filters={filters}
         errorMessage={combinedError}
+        formAccounts={formData.accounts}
+        formSubcategories={formData.subcategories}
+        formPeople={formData.people}
       />
     </div>
   );
