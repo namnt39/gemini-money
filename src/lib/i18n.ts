@@ -579,6 +579,20 @@ type NestedKeyOf<ObjectType extends object> = {
 }[keyof ObjectType & (string | number)];
 
 export type TranslationKey = NestedKeyOf<Resource[Locale]>;
+export type TranslationParams = Record<string, string | number>;
+
+function interpolate(template: string, params?: TranslationParams) {
+  if (!params) {
+    return template;
+  }
+  return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => {
+    const value = params[key];
+    if (value === undefined || value === null) {
+      return "";
+    }
+    return String(value);
+  });
+}
 
 function resolvePath(locale: Locale, path: string) {
   const segments = path.split(".");
@@ -592,20 +606,20 @@ function resolvePath(locale: Locale, path: string) {
   return current;
 }
 
-export function translate(path: TranslationKey, locale: Locale = DEFAULT_LOCALE): string {
+export function translate(path: TranslationKey, locale: Locale = DEFAULT_LOCALE, params?: TranslationParams): string {
   const value = resolvePath(locale, path);
   if (typeof value === "string") {
-    return value;
+    return interpolate(value, params);
   }
   const fallback = resolvePath(DEFAULT_LOCALE, path);
   if (typeof fallback === "string") {
-    return fallback;
+    return interpolate(fallback, params);
   }
   return path;
 }
 
 export function createTranslator(locale: Locale = DEFAULT_LOCALE) {
-  return (path: TranslationKey) => translate(path, locale);
+  return (path: TranslationKey, params?: TranslationParams) => translate(path, locale, params);
 }
 
 export function isTranslationKey(path: string): path is TranslationKey {
