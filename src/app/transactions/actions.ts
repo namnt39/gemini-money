@@ -11,6 +11,22 @@ const revalidateTransactionViews = () => {
   revalidatePath("/transactions/add");
 };
 
+const SUPABASE_UNAVAILABLE_MESSAGE =
+  "The database connection is not configured. Please contact support.";
+
+type SupabaseResolution =
+  | { supabaseClient: ReturnType<typeof requireSupabaseClient>; errorMessage?: undefined }
+  | { supabaseClient: null; errorMessage: string };
+
+function resolveSupabaseClient(): SupabaseResolution {
+  try {
+    return { supabaseClient: requireSupabaseClient() };
+  } catch (error) {
+    console.error("Supabase client is not configured:", error);
+    return { supabaseClient: null, errorMessage: SUPABASE_UNAVAILABLE_MESSAGE };
+  }
+}
+
 type CashbackData = {
   percent: number; // 0-100
   amount: number; // >= 0
@@ -34,16 +50,11 @@ type TransactionData = {
 type UpdateTransactionInput = TransactionData & { id: string };
 
 async function persistTransaction(data: TransactionData, options: { id?: string } = {}) {
-  let supabaseClient: ReturnType<typeof requireSupabaseClient>;
-  try {
-    supabaseClient = requireSupabaseClient();
-  } catch (error) {
-    console.error("Supabase client is not configured:", error);
-    return {
-      success: false,
-      message: "The database connection is not configured. Please contact support.",
-    };
+  const supabaseResolution = resolveSupabaseClient();
+  if (!supabaseResolution.supabaseClient) {
+    return { success: false, message: supabaseResolution.errorMessage };
   }
+  const supabaseClient = supabaseResolution.supabaseClient;
 
   if (!data.amount || data.amount <= 0) {
     return { success: false, message: "Invalid amount." };
@@ -244,16 +255,11 @@ export async function deleteTransaction(transactionId: string) {
     return { success: false, message: "Missing transaction identifier." };
   }
 
-  let supabaseClient: ReturnType<typeof requireSupabaseClient>;
-  try {
-    supabaseClient = requireSupabaseClient();
-  } catch (error) {
-    console.error("Supabase client is not configured:", error);
-    return {
-      success: false,
-      message: "The database connection is not configured. Please contact support.",
-    };
+  const supabaseResolution = resolveSupabaseClient();
+  if (!supabaseResolution.supabaseClient) {
+    return { success: false, message: supabaseResolution.errorMessage };
   }
+  const supabaseClient = supabaseResolution.supabaseClient;
 
   const { error } = await supabaseClient
     .from("transactions")
@@ -275,16 +281,11 @@ export async function deleteTransactions(transactionIds: string[]) {
     return { success: false, message: "No transactions selected." };
   }
 
-  let supabaseClient: ReturnType<typeof requireSupabaseClient>;
-  try {
-    supabaseClient = requireSupabaseClient();
-  } catch (error) {
-    console.error("Supabase client is not configured:", error);
-    return {
-      success: false,
-      message: "The database connection is not configured. Please contact support.",
-    };
+  const supabaseResolution = resolveSupabaseClient();
+  if (!supabaseResolution.supabaseClient) {
+    return { success: false, message: supabaseResolution.errorMessage };
   }
+  const supabaseClient = supabaseResolution.supabaseClient;
 
   const { error } = await supabaseClient
     .from("transactions")

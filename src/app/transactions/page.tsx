@@ -134,7 +134,9 @@ function getDateRange(filters: TransactionFilters) {
 async function fetchTransactions(
   filters: TransactionFilters
 ): Promise<{ rows: TransactionListItem[]; count: number; errorMessage?: string }> {
-  if (!supabase) {
+  const supabaseClient = supabase;
+
+  if (!supabaseClient) {
     const fallback = getMockTransactions(filters);
     const detail = supabaseConfigurationError?.message;
     const message = detail ? `${fallback.message} (${detail})` : fallback.message;
@@ -144,7 +146,7 @@ async function fetchTransactions(
 
   const { start, end } = getDateRange(filters);
 
-  let query = supabase
+  let query = supabaseClient
     .from("transactions")
     .select(
       `
@@ -264,7 +266,9 @@ async function fetchTransactions(
 }
 
 async function fetchAccounts(): Promise<{ accounts: AccountRecord[]; errorMessage?: string }> {
-  if (!supabase) {
+  const supabaseClient = supabase;
+
+  if (!supabaseClient) {
     const fallback = getMockAccounts();
     const detail = supabaseConfigurationError?.message;
     const message = detail ? `${fallback.message} (${detail})` : fallback.message;
@@ -272,7 +276,7 @@ async function fetchAccounts(): Promise<{ accounts: AccountRecord[]; errorMessag
     return { accounts: fallback.accounts, errorMessage: message };
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from("accounts")
     .select("id, name, image_url, type")
     .order("name", { ascending: true });

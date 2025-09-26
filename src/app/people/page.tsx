@@ -215,7 +215,9 @@ const aggregatePeople = (transactions: TransactionListItem[]): PersonAggregate[]
 async function fetchPeopleData(
   filters: TransactionFilters
 ): Promise<{ people: PersonAggregate[]; errorMessage?: string }> {
-  if (!supabase) {
+  const supabaseClient = supabase;
+
+  if (!supabaseClient) {
     const fallback = getMockTransactions({ ...filters, page: 1, pageSize: 1000 });
     const rows = fallback.rows.filter((transaction) => transaction.person?.id);
     const aggregated = aggregatePeople(rows);
@@ -226,7 +228,7 @@ async function fetchPeopleData(
 
   const { start, end } = getDateRange(filters);
 
-  let query = supabase
+  let query = supabaseClient
     .from("transactions")
     .select(
       `

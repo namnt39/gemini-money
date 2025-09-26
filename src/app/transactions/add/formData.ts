@@ -157,7 +157,9 @@ const hasMeaningfulError = (error: unknown) => {
 };
 
 export async function loadTransactionFormData(): Promise<FormDataResult> {
-  if (!isSupabaseConfigured || !supabase) {
+  const supabaseClient = supabase;
+
+  if (!isSupabaseConfigured || !supabaseClient) {
     const { accounts, subcategories, people } = getMockTransactionFormData();
     const normalizedSubcategories = subcategories.map((subcategory) =>
       mapSubcategoryRecord({
@@ -201,14 +203,14 @@ export async function loadTransactionFormData(): Promise<FormDataResult> {
     };
   }
 
-  const accountsPromise = supabase
+  const accountsPromise = supabaseClient
     .from("accounts")
     .select("id, name, image_url, type, is_cashback_eligible, cashback_percentage, max_cashback_amount");
-  const subcategoriesPromise = supabase
+  const subcategoriesPromise = supabaseClient
     .from("subcategories")
     .select("id, name, image_url, is_shop, transaction_nature, categories(name, transaction_nature)");
-  const peoplePromise = supabase.from("people").select("id, name, image_url, is_group");
-  const shopsPromise = supabase
+  const peoplePromise = supabaseClient.from("people").select("id, name, image_url, is_group");
+  const shopsPromise = supabaseClient
     .from("shops")
     .select("id, name, image_url, type, created_at")
     .order("name", { ascending: true });
@@ -288,11 +290,13 @@ export async function loadTransactionFormData(): Promise<FormDataResult> {
 }
 
 export async function loadShops(): Promise<{ shops: Shop[]; errorMessage?: string }> {
-  if (!isSupabaseConfigured || !supabase) {
+  const supabaseClient = supabase;
+
+  if (!isSupabaseConfigured || !supabaseClient) {
     return { shops: fallbackShops, errorMessage: supabaseConfigurationError?.message };
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from("shops")
     .select("id, name, image_url, type, created_at")
     .order("name", { ascending: true });
