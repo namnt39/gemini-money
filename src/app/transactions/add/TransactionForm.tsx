@@ -11,6 +11,7 @@ import { createTranslator } from "@/lib/i18n";
 import { normalizeTransactionNature, type TransactionNatureCode } from "@/lib/transactionNature";
 import { useAppShell } from "@/components/AppShellProvider";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { formatDateTag } from "@/lib/dateTag";
 import type { TransactionListItem } from "../types";
 
 type Tab = "expense" | "income" | "transfer" | "debt";
@@ -613,15 +614,19 @@ export default function TransactionForm({
 
   const formClasses =
     layout === "modal"
-      ? "flex h-full flex-col overflow-hidden"
+      ? "flex h-full min-h-0 flex-col overflow-hidden"
       : "overflow-hidden rounded-lg border border-gray-200 shadow-sm";
 
-  const contentWrapperClasses = layout === "modal" ? "flex-1 overflow-y-auto bg-white p-6" : "space-y-6 bg-white p-6";
+  const contentWrapperClasses =
+    layout === "modal"
+      ? "flex-1 min-h-0 overflow-y-auto bg-white p-6 space-y-6"
+      : "space-y-6 bg-white p-6";
+  const dateTag = useMemo(() => formatDateTag(date), [date]);
 
   return (
     <form onSubmit={handleSubmit} className={formClasses}>
       {layout === "modal" ? (
-        <div className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
           <button
             type="button"
             onClick={handleBack}
@@ -634,11 +639,7 @@ export default function TransactionForm({
           <span className="h-9 w-9" aria-hidden="true" />
         </div>
       ) : null}
-      <div
-        className={`flex flex-col gap-3 border-b border-gray-200 bg-gray-50 px-6 py-4 md:flex-row md:items-center md:justify-between ${
-          layout === "modal" ? "" : ""
-        }`}
-      >
+      <div className="flex flex-shrink-0 flex-col gap-3 border-b border-gray-200 bg-gray-50 px-6 py-4 md:flex-row md:items-center md:justify-between">
         <div className="grid flex-1 grid-cols-2 gap-2 md:grid-cols-4">
           <TabButton title={t("transactionForm.tabs.expense")} active={activeTab === "expense"} color={tabColors.expense} onClick={() => setActiveTab("expense")} />
           <TabButton title={t("transactionForm.tabs.income")} active={activeTab === "income"} color={tabColors.income} onClick={() => setActiveTab("income")} />
@@ -647,7 +648,7 @@ export default function TransactionForm({
         </div>
       </div>
 
-      <div className={contentWrapperClasses + (layout === "modal" ? " space-y-6" : "")}>
+      <div className={contentWrapperClasses}>
         <div className="grid gap-6 md:grid-cols-2">
           <AmountInput value={amount} onChange={setAmount} />
           <div>
@@ -658,6 +659,13 @@ export default function TransactionForm({
               onChange={(e) => setDate(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-4 py-3 text-base shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
             />
+            {dateTag ? (
+              <div className="mt-2">
+                <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-indigo-700">
+                  {dateTag}
+                </span>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -848,7 +856,7 @@ export default function TransactionForm({
         </div>
 
         <div
-          className={`flex flex-col gap-3 border-t border-gray-200 px-6 py-4 md:flex-row md:items-center md:justify-between ${
+          className={`flex flex-shrink-0 flex-col gap-3 border-t border-gray-200 px-6 py-4 md:flex-row md:items-center md:justify-between ${
             layout === "modal" ? "bg-white" : "bg-gray-50 pt-4"
           }`}
         >
