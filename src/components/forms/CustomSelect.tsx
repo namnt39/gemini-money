@@ -22,6 +22,12 @@ const SearchIcon = () => <svg className="h-5 w-5 text-gray-400" xmlns="http://ww
 
 const ADD_NEW_VALUE = "__add_new__";
 
+const normalizeText = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+
 export default function CustomSelect({ label, value, onChange, options, required = false, defaultTab, onAddNew, addNewLabel }: CustomSelectProps) {
   const t = createTranslator();
   const [query, setQuery] = useState('');
@@ -57,7 +63,10 @@ export default function CustomSelect({ label, value, onChange, options, required
   const filteredOptions = useMemo(() => {
     let filtered = options;
     if (activeTab !== 'All') { filtered = filtered.filter(opt => opt.type === activeTab); }
-    if (query !== '') { filtered = filtered.filter(opt => opt.name.toLowerCase().includes(query.toLowerCase())); }
+    const normalizedQuery = normalizeText(query);
+    if (normalizedQuery !== '') {
+      filtered = filtered.filter((opt) => normalizeText(opt.name).includes(normalizedQuery));
+    }
     return filtered;
   }, [query, options, activeTab]);
 

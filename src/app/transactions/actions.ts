@@ -22,6 +22,7 @@ type TransactionData = {
   date: string;
   cashback: CashbackData | null; // include cashback information
   debtMode?: "collect" | "lend";
+  shopId?: string | null;
 };
 
 export async function createTransaction(data: TransactionData) {
@@ -135,6 +136,8 @@ export async function createTransaction(data: TransactionData) {
     // Final amount after cashback
     final_price: finalPrice,
   };
+
+  transactionToInsert.shop_id = data.shopId ?? null;
 
   // Tab-specific handling
   if (data.activeTab === "expense") {

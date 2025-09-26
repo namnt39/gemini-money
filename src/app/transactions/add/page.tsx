@@ -24,6 +24,7 @@ export type Subcategory = {
   image_url: string | null;
   transaction_nature?: string | null;
   categories: CategoryInfo[] | CategoryInfo | null;
+  is_shop?: boolean | null;
 };
 type CategoryRecord = {
   id: string;
@@ -57,6 +58,7 @@ async function getFormData() {
         name: subcategory.name,
         image_url: subcategory.image_url,
         transaction_nature: normalizeTransactionNature(subcategory.transaction_nature ?? null) ?? null,
+        is_shop: subcategory.is_shop ?? false,
         categories: Array.isArray(subcategory.categories)
           ? subcategory.categories.map((category) => ({
               ...category,
@@ -84,7 +86,7 @@ async function getFormData() {
     .select("id, name, image_url, type, is_cashback_eligible, cashback_percentage, max_cashback_amount");
   const subcategoriesPromise = supabase
     .from("subcategories")
-    .select("id, name, image_url, categories(name, transaction_nature)");
+    .select("id, name, image_url, is_shop, categories(name, transaction_nature)");
   const peoplePromise = supabase.from("people").select("id, name, image_url, is_group");
   const categoriesPromise = supabase.from("categories").select("id, name, transaction_nature, image_url");
 
@@ -121,6 +123,7 @@ async function getFormData() {
       name: category.name,
       image_url: category.image_url ?? null,
       transaction_nature: normalizedNature,
+      is_shop: false,
       categories: [
         {
           name: category.name,

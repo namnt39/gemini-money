@@ -14,21 +14,42 @@ const formatNumber = (value: string) => {
 };
 
 const toReadableWords = (numStr: string) => {
-  const num = parseInt(numStr.replace(/,/g, ""), 10);
-  if (isNaN(num) || num === 0) return "";
-  if (num >= 1_000_000_000)
-    return `${Math.floor(num / 1_000_000_000)} billion ${Math.floor(
-      (num % 1_000_000_000) / 1_000_000
-    )} million...`;
-  if (num >= 1_000_000)
-    return `${Math.floor(num / 1_000_000)} million ${Math.floor(
-      (num % 1_000_000) / 1_000
-    )} thousand...`;
-  if (num >= 1_000)
-    return `${Math.floor(num / 1_000)} thousand ${
-      num % 1_000 > 0 ? `${num % 1_000} VND...` : ""
-    }`;
-  return `${num} VND`;
+  const raw = numStr.replace(/,/g, "");
+  const num = Number.parseInt(raw, 10);
+  if (!Number.isFinite(num) || num === 0) {
+    return "";
+  }
+
+  const formatter = new Intl.NumberFormat("vi-VN");
+  const units = [
+    { value: 1_000_000_000, label: "tỷ" },
+    { value: 1_000_000, label: "triệu" },
+    { value: 1_000, label: "nghìn" },
+  ];
+
+  const segments: string[] = [];
+  let remaining = num;
+
+  units.forEach(({ value, label }) => {
+    if (remaining >= value) {
+      const count = Math.floor(remaining / value);
+      segments.push(`${formatter.format(count)} ${label}`);
+      remaining %= value;
+    }
+  });
+
+  if (segments.length === 0) {
+    return `${formatter.format(num)} đồng`;
+  }
+
+  if (remaining > 0) {
+    segments.push(`${formatter.format(remaining)} đồng`);
+  } else {
+    const lastIndex = segments.length - 1;
+    segments[lastIndex] = `${segments[lastIndex]} đồng`;
+  }
+
+  return segments.join(" ");
 };
 
 // --- Props ---

@@ -6,8 +6,8 @@ import AppShell from "@/components/AppShell"; // Import AppShell
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "gemini",
-  description: "Personal Finance Management App",
+  title: "Money Flow",
+  description: "Money Flow personal finance management app",
 };
 
 export default function RootLayout({
