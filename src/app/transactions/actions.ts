@@ -1,6 +1,6 @@
 "use server";
 
-import { supabase } from "@/lib/supabaseClient";
+import { requireSupabaseClient } from "@/lib/supabaseClient";
 import { revalidatePath } from "next/cache";
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -34,6 +34,17 @@ type TransactionData = {
 type UpdateTransactionInput = TransactionData & { id: string };
 
 async function persistTransaction(data: TransactionData, options: { id?: string } = {}) {
+  let supabaseClient: ReturnType<typeof requireSupabaseClient>;
+  try {
+    supabaseClient = requireSupabaseClient();
+  } catch (error) {
+    console.error("Supabase client is not configured:", error);
+    return {
+      success: false,
+      message: "The database connection is not configured. Please contact support.",
+    };
+  }
+
   if (!data.amount || data.amount <= 0) {
     return { success: false, message: "Invalid amount." };
   }
@@ -76,7 +87,7 @@ async function persistTransaction(data: TransactionData, options: { id?: string 
     let allowedAmountForRounding = data.amount;
 
     if (data.activeTab === "expense" && normalizedFromAccountId) {
-      const { data: accountInfo } = await supabase
+      const { data: accountInfo } = await supabaseClient
         .from("accounts")
         .select("cashback_percentage, max_cashback_amount")
         .eq("id", normalizedFromAccountId)
@@ -194,7 +205,7 @@ async function persistTransaction(data: TransactionData, options: { id?: string 
     return { success: false, message: "Unsupported transaction type." };
   }
 
-  const query = supabase.from("transactions");
+  const query = supabaseClient.from("transactions");
   let error: { message?: string } | null = null;
   if (options.id) {
     ({ error } = await query.update(transactionToPersist).eq("id", options.id));
@@ -233,7 +244,18 @@ export async function deleteTransaction(transactionId: string) {
     return { success: false, message: "Missing transaction identifier." };
   }
 
-  const { error } = await supabase
+  let supabaseClient: ReturnType<typeof requireSupabaseClient>;
+  try {
+    supabaseClient = requireSupabaseClient();
+  } catch (error) {
+    console.error("Supabase client is not configured:", error);
+    return {
+      success: false,
+      message: "The database connection is not configured. Please contact support.",
+    };
+  }
+
+  const { error } = await supabaseClient
     .from("transactions")
     .delete()
     .eq("id", transactionId);
@@ -253,7 +275,18 @@ export async function deleteTransactions(transactionIds: string[]) {
     return { success: false, message: "No transactions selected." };
   }
 
-  const { error } = await supabase
+  let supabaseClient: ReturnType<typeof requireSupabaseClient>;
+  try {
+    supabaseClient = requireSupabaseClient();
+  } catch (error) {
+    console.error("Supabase client is not configured:", error);
+    return {
+      success: false,
+      message: "The database connection is not configured. Please contact support.",
+    };
+  }
+
+  const { error } = await supabaseClient
     .from("transactions")
     .delete()
     .in("id", transactionIds);
