@@ -5,7 +5,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import Tooltip from "@/components/Tooltip";
 import RemoteImage from "@/components/RemoteImage";
 import { ClearIcon } from "@/components/Icons";
-import { createTranslator } from "@/lib/i18n";
+import { createTranslator, isTranslationKey } from "@/lib/i18n";
 
 import type { Shop } from "../transactions/add/formData";
 
@@ -74,18 +74,29 @@ export default function ShopsView({ shops, errorMessage }: ShopsViewProps) {
     searchInputRef.current?.focus();
   }, []);
 
+  const formatTypeLabel = useCallback(
+    (type: string) => {
+      const key = `shops.types.${type}`;
+      if (isTranslationKey(key)) {
+        const translation = t(key);
+        if (translation !== key) {
+          return translation;
+        }
+      }
+      return type.charAt(0).toUpperCase() + type.slice(1);
+    },
+    [t]
+  );
+
   const typeOptions = useMemo(() => {
     const base: { label: string; value: TypeFilter }[] = [
       { value: "all", label: t("shops.filters.allTypes") },
     ];
     const mapped = availableTypes.map((type) => {
-      const key = `shops.types.${type}` as const;
-      const translation = t(key);
-      const label = translation === key ? type.charAt(0).toUpperCase() + type.slice(1) : translation;
-      return { value: type, label };
+      return { value: type, label: formatTypeLabel(type) };
     });
     return [...base, ...mapped];
-  }, [availableTypes, t]);
+  }, [availableTypes, formatTypeLabel, t]);
 
   return (
     <div className="space-y-4">
@@ -152,11 +163,7 @@ export default function ShopsView({ shops, errorMessage }: ShopsViewProps) {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filteredShops.map((shop) => {
                 const typeKey = normalizeType(shop.type);
-                const typeKeyPath = `shops.types.${typeKey}` as const;
-                const translatedType = t(typeKeyPath);
-                const displayType = translatedType === typeKeyPath
-                  ? typeKey.charAt(0).toUpperCase() + typeKey.slice(1)
-                  : translatedType;
+                const displayType = formatTypeLabel(typeKey);
                 const initials = shop.name
                   .split(" ")
                   .map((word) => word.charAt(0))
