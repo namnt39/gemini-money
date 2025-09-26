@@ -27,12 +27,12 @@ export default function Tooltip({ label, children, position = "top" }: TooltipPr
   );
 
   return (
-    <span className="group relative inline-flex">
+    <span className="group/tooltip relative inline-flex">
       {child}
       <span
         id={tooltipId}
         role="tooltip"
-        className={`pointer-events-none absolute z-20 min-w-[12rem] max-w-[18rem] whitespace-pre rounded bg-gray-900 px-2 py-1 text-left text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 ${POSITION_CLASSES[position]}`}
+        className={`pointer-events-none absolute z-20 min-w-[12rem] max-w-[18rem] whitespace-pre rounded bg-gray-900 px-2 py-1 text-left text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100 ${POSITION_CLASSES[position]}`}
       >
         {label}
       </span>
