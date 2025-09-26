@@ -608,6 +608,18 @@ export function createTranslator(locale: Locale = DEFAULT_LOCALE) {
   return (path: TranslationKey) => translate(path, locale);
 }
 
+export function isTranslationKey(path: string): path is TranslationKey {
+  const segments = path.split(".");
+  let current: unknown = resources[DEFAULT_LOCALE];
+  for (const segment of segments) {
+    if (current == null || typeof current !== "object" || !(segment in current)) {
+      return false;
+    }
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return typeof current === "string";
+}
+
 export function getResources(locale: Locale = DEFAULT_LOCALE) {
   return resources[locale] ?? resources[DEFAULT_LOCALE];
 }
