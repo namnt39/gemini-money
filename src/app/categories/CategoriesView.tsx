@@ -9,6 +9,7 @@ import RemoteImage from "@/components/RemoteImage";
 import { useAppShell } from "@/components/AppShellProvider";
 import { createTranslator } from "@/lib/i18n";
 import { normalizeTransactionNature } from "@/lib/transactionNature";
+import { ClearIcon } from "@/components/Icons";
 
 import type { CategoryRecord } from "./page";
 import { deleteCategory } from "./actions";
@@ -269,14 +270,18 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
                   className="w-full rounded-md border border-gray-300 px-3 py-2 pr-24 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 />
                 {searchTerm ? (
-                  <button
-                    type="button"
-                    onClick={handleSearchClear}
-                    className="absolute inset-y-1.5 right-2 inline-flex items-center rounded-md border border-transparent px-2 text-xs font-semibold uppercase tracking-wide text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
-                    aria-label={t("common.clear")}
-                  >
-                    {t("common.clear")}
-                  </button>
+                  <div className="absolute inset-y-1.5 right-2 flex items-center">
+                    <Tooltip label={t("common.clear")}>
+                      <button
+                        type="button"
+                        onClick={handleSearchClear}
+                        className="inline-flex items-center justify-center rounded-md border border-transparent p-2 text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
+                        aria-label={t("common.clear")}
+                      >
+                        <ClearIcon />
+                      </button>
+                    </Tooltip>
+                  </div>
                 ) : null}
               </div>
             </div>

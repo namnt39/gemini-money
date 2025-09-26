@@ -48,7 +48,7 @@ const resources = {
     },
     transactions: {
       title: "Transaction History",
-      addButton: "+ Add New",
+      addButton: "Add New",
       tableHeaders: {
         select: "Select",
         date: "Date",
@@ -309,7 +309,7 @@ const resources = {
     },
     transactions: {
       title: "Lịch sử Giao dịch",
-      addButton: "+ Thêm mới",
+      addButton: "Thêm mới",
       tableHeaders: {
         select: "Chọn",
         date: "Ngày",
