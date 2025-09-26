@@ -5,7 +5,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import Tooltip from "@/components/Tooltip";
 import RemoteImage from "@/components/RemoteImage";
 import { ClearIcon } from "@/components/Icons";
-import { createTranslator } from "@/lib/i18n";
+import { createTranslator, isTranslationKey } from "@/lib/i18n";
 
 import type { Shop } from "../transactions/add/formData";
 
@@ -79,9 +79,12 @@ export default function ShopsView({ shops, errorMessage }: ShopsViewProps) {
       { value: "all", label: t("shops.filters.allTypes") },
     ];
     const mapped = availableTypes.map((type) => {
-      const key = `shops.types.${type}` as const;
-      const translation = t(key);
-      const label = translation === key ? type.charAt(0).toUpperCase() + type.slice(1) : translation;
+      const key = `shops.types.${type}`;
+      const translation = isTranslationKey(key) ? t(key) : null;
+      const label =
+        translation && translation !== key
+          ? translation
+          : type.charAt(0).toUpperCase() + type.slice(1);
       return { value: type, label };
     });
     return [...base, ...mapped];
@@ -152,11 +155,12 @@ export default function ShopsView({ shops, errorMessage }: ShopsViewProps) {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filteredShops.map((shop) => {
                 const typeKey = normalizeType(shop.type);
-                const typeKeyPath = `shops.types.${typeKey}` as const;
-                const translatedType = t(typeKeyPath);
-                const displayType = translatedType === typeKeyPath
-                  ? typeKey.charAt(0).toUpperCase() + typeKey.slice(1)
-                  : translatedType;
+                const typeKeyPath = `shops.types.${typeKey}`;
+                const translatedType = isTranslationKey(typeKeyPath) ? t(typeKeyPath) : null;
+                const displayType =
+                  translatedType && translatedType !== typeKeyPath
+                    ? translatedType
+                    : typeKey.charAt(0).toUpperCase() + typeKey.slice(1);
                 const initials = shop.name
                   .split(" ")
                   .map((word) => word.charAt(0))

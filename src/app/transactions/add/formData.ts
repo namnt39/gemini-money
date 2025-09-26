@@ -132,28 +132,83 @@ const DEFAULT_TRANSFER_CATEGORY: Subcategory = {
   ],
 };
 
-const hasMeaningfulError = (error: unknown) => {
-  if (!error || typeof error !== "object") {
-    return false;
+const extractMeaningfulErrorMessage = (error: unknown): string | null => {
+  if (error == null) {
+    return null;
   }
-  if ("message" in error && typeof (error as { message?: unknown }).message === "string") {
-    return Boolean((error as { message?: string }).message);
+  if (typeof error === "string") {
+    const trimmed = error.trim();
+    return trimmed.length > 0 ? trimmed : null;
   }
-  if ("details" in error && typeof (error as { details?: unknown }).details === "string") {
-    return Boolean((error as { details?: string }).details);
-  }
-  if ("hint" in error && typeof (error as { hint?: unknown }).hint === "string") {
-    return Boolean((error as { hint?: string }).hint);
-  }
-  return Object.entries(error).some(([, value]) => {
-    if (value == null) {
-      return false;
+  if (error instanceof Error) {
+    const message = error.message?.trim();
+    if (message) {
+      return message;
     }
-    if (typeof value === "string") {
-      return value.trim().length > 0;
+    return error.name || null;
+  }
+  if (typeof error !== "object") {
+    return String(error);
+  }
+
+  const record = error as Record<string, unknown>;
+  const candidateKeys = ["message", "details", "hint", "code", "status", "statusText"] as const;
+  for (const key of candidateKeys) {
+    if (key in record) {
+      const value = record[key];
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (trimmed) {
+          return trimmed;
+        }
+      } else if (typeof value === "number" && Number.isFinite(value)) {
+        return `${key}: ${value}`;
+      }
     }
-    return true;
-  });
+  }
+
+  const summarizedEntries = Object.entries(record)
+    .map(([key, value]) => {
+      if (value == null) {
+        return null;
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        return trimmed ? `${key}: ${trimmed}` : null;
+      }
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return `${key}: ${value}`;
+      }
+      if (typeof value === "boolean") {
+        return `${key}: ${value}`;
+      }
+      return null;
+    })
+    .filter((entry): entry is string => Boolean(entry));
+
+  if (summarizedEntries.length > 0) {
+    return summarizedEntries.join(", ");
+  }
+
+  try {
+    const serialized = JSON.stringify(error);
+    if (serialized && serialized !== "{}") {
+      return serialized;
+    }
+  } catch {
+    // ignore serialization failures
+  }
+
+  return null;
+};
+
+const logMeaningfulError = (context: string, error: unknown, fallbackMessage?: string) => {
+  const message = extractMeaningfulErrorMessage(error) ?? fallbackMessage ?? null;
+  if (message) {
+    console.error(`${context}: ${message}`);
+    return message;
+  }
+  return null;
 };
 
 export async function loadTransactionFormData(): Promise<FormDataResult> {
@@ -220,18 +275,10 @@ export async function loadTransactionFormData(): Promise<FormDataResult> {
     { data: shops, error: shopsError },
   ] = await Promise.all([accountsPromise, subcategoriesPromise, peoplePromise, shopsPromise]);
 
-  if (hasMeaningfulError(accountsError)) {
-    console.error("Failed to fetch accounts:", accountsError);
-  }
-  if (hasMeaningfulError(subcategoriesError)) {
-    console.error("Failed to fetch subcategories:", subcategoriesError);
-  }
-  if (hasMeaningfulError(peopleError)) {
-    console.error("Failed to fetch people:", peopleError);
-  }
-  if (hasMeaningfulError(shopsError)) {
-    console.error("Failed to fetch shops:", shopsError);
-  }
+  logMeaningfulError("Failed to fetch accounts", accountsError);
+  logMeaningfulError("Failed to fetch subcategories", subcategoriesError);
+  logMeaningfulError("Failed to fetch people", peopleError);
+  logMeaningfulError("Failed to fetch shops", shopsError);
 
   type RawSubcategory = {
     id: string;
@@ -298,9 +345,8 @@ export async function loadShops(): Promise<{ shops: Shop[]; errorMessage?: strin
     .order("name", { ascending: true });
 
   let errorMessage: string | undefined;
-  if (hasMeaningfulError(error)) {
-    errorMessage = error?.message || "Unable to fetch shops.";
-    console.error("Failed to fetch shops:", error);
+  if (error) {
+    errorMessage = logMeaningfulError("Failed to fetch shops", error, "Unable to fetch shops.") ?? undefined;
   }
 
   const typed = (data as Shop[] | null) || [];

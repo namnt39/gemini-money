@@ -608,6 +608,17 @@ export function createTranslator(locale: Locale = DEFAULT_LOCALE) {
   return (path: TranslationKey) => translate(path, locale);
 }
 
+export function isTranslationKey(path: string): path is TranslationKey {
+  if (!path) {
+    return false;
+  }
+  const resolved = resolvePath(DEFAULT_LOCALE, path);
+  if (typeof resolved === "string") {
+    return true;
+  }
+  return resolved !== undefined && resolved !== null;
+}
+
 export function getResources(locale: Locale = DEFAULT_LOCALE) {
   return resources[locale] ?? resources[DEFAULT_LOCALE];
 }
