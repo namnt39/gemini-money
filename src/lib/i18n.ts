@@ -160,6 +160,9 @@ const resources = {
         typeLabel: "Type",
         allTypes: "All types",
       },
+      actions: {
+        addNew: "Add new shop",
+      },
       fields: {
         type: "Category",
         created: "Created",
@@ -443,6 +446,9 @@ const resources = {
         searchPlaceholder: "Tìm kiếm cửa hàng...",
         typeLabel: "Loại",
         allTypes: "Tất cả",
+      },
+      actions: {
+        addNew: "Thêm cửa hàng mới",
       },
       fields: {
         type: "Phân loại",
