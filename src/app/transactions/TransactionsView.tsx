@@ -1,6 +1,6 @@
 "use client";
 
-import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
+import type { DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -10,6 +10,7 @@ import Tooltip from "@/components/Tooltip";
 import RemoteImage from "@/components/RemoteImage";
 import { createTranslator } from "@/lib/i18n";
 import { numberToVietnameseWords } from "@/lib/numberToVietnameseWords";
+import { formatDateTag, getDateTagSortValue } from "@/lib/dateTag";
 import { ClearIcon } from "@/components/Icons";
 import { deleteTransaction, deleteTransactions } from "./actions";
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "./constants";
@@ -41,28 +42,6 @@ const natureTabs: NatureTab[] = [
   { value: "expense", labelKey: "transactions.tabs.expense" },
   { value: "transfer", labelKey: "transactions.tabs.transfer" },
 ];
-
-const natureTabPalette: Record<
-  TransactionFilters["nature"],
-  { active: string; inactive: string }
-> = {
-  all: {
-    active: "border-slate-900 bg-slate-900 text-white shadow",
-    inactive: "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
-  },
-  income: {
-    active: "border-emerald-600 bg-emerald-500 text-white shadow",
-    inactive: "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
-  },
-  expense: {
-    active: "border-rose-600 bg-rose-500 text-white shadow",
-    inactive: "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100",
-  },
-  transfer: {
-    active: "border-sky-600 bg-sky-500 text-white shadow",
-    inactive: "border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100",
-  },
-};
 
 const numberFormatter = new Intl.NumberFormat("vi-VN");
 const monthFormatter = new Intl.DateTimeFormat("en-US", { month: "long" });
@@ -275,6 +254,28 @@ const ColumnsIcon = ({ active }: { active: boolean }) => (
   </svg>
 );
 
+const RefreshIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 20 20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.6}
+    className="h-4 w-4"
+  >
+    <path
+      d="M4 4.5v4h4M16 15.5v-4h-4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M6 14.5A5.5 5.5 0 0 0 16 11l.75-.75M14 5.5A5.5 5.5 0 0 0 4 9l-.75.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 const PencilIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -408,6 +409,70 @@ function DeleteSelectedButton({ selectedIds, onDeleted }: DeleteSelectedButtonPr
   );
 }
 
+type NatureHoverMenuItem = NatureTab & { label: string };
+
+type NatureHoverMenuProps = {
+  items: NatureHoverMenuItem[];
+  activeValue: NatureTab["value"];
+  onSelect: (value: NatureTab["value"]) => void;
+};
+
+function NatureHoverMenu({ items, activeValue, onSelect }: NatureHoverMenuProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const activeItem = items.find((item) => item.value === activeValue) ?? items[0];
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+    >
+      <button
+        type="button"
+        className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+        aria-haspopup="true"
+        aria-expanded={isOpen}
+      >
+        <span>{activeItem?.label}</span>
+        <ChevronDownIcon />
+      </button>
+      <div
+        className={`absolute right-0 top-full z-20 mt-1 w-48 rounded-md border border-gray-200 bg-white shadow-lg transition ${
+          isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      >
+        <ul className="py-1 text-sm text-gray-700">
+          {items.map((item) => {
+            const isActive = item.value === activeValue;
+            return (
+              <li key={item.value}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelect(item.value);
+                    setIsOpen(false);
+                  }}
+                  className={`block w-full px-4 py-2 text-left transition ${
+                    isActive ? "bg-indigo-50 font-semibold text-indigo-700" : "hover:bg-indigo-50"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+const TagBadge = ({ value }: { value: string }) => (
+  <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
+    {value}
+  </span>
+);
+
 export default function TransactionsView({
   transactions,
   totalCount,
@@ -432,7 +497,10 @@ export default function TransactionsView({
   const [columnOrder, setColumnOrder] = useState<DataColumnId[]>(DEFAULT_COLUMN_ORDER);
   const [columnWidths, setColumnWidths] = useState<Partial<Record<DataColumnId, number>>>(() => ({}));
   const dragColumnIdRef = useRef<DataColumnId | null>(null);
-  const resizeInfoRef = useRef<{ columnId: DataColumnId; startX: number; startWidth: number } | null>(null);
+  const resizeInfoRef = useRef<
+    { columnId: DataColumnId; startX: number; startWidth: number; pointerId: number } | null
+  >(null);
+  const bodyUserSelectRef = useRef<string | null>(null);
   const [resetHighlighted, setResetHighlighted] = useState(false);
   const resetHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showLoading, setShowLoading] = useState(false);
@@ -441,6 +509,9 @@ export default function TransactionsView({
   const [isAddModalOpen, setAddModalOpen] = useState(false);
   const [modalInitialTab, setModalInitialTab] = useState<FormTab>("expense");
   const [editingTransaction, setEditingTransaction] = useState<TransactionListItem | null>(null);
+  const [tagFilter, setTagFilter] = useState<string>("all");
+  const [debtCycleFilter, setDebtCycleFilter] = useState<string>("all");
+  const [debtRepayTagFilter, setDebtRepayTagFilter] = useState<string>("all");
   const defaultTemporalValues = useMemo(() => {
     const now = new Date();
     const month = now.getMonth() + 1;
@@ -502,13 +573,185 @@ export default function TransactionsView({
     return map;
   }, [transactions]);
 
+  const isDebtTransaction = useCallback((transaction: TransactionListItem) => {
+    if (!transaction) {
+      return false;
+    }
+    if (transaction.transactionNature === "DE") {
+      return true;
+    }
+    return Boolean(transaction.personId);
+  }, []);
+
+  const isRepaymentTransaction = useCallback(
+    (transaction: TransactionListItem) => {
+      if (!isDebtTransaction(transaction)) {
+        return false;
+      }
+      if (typeof transaction.amount === "number" && transaction.amount < 0) {
+        return true;
+      }
+      if (typeof transaction.finalPrice === "number" && transaction.finalPrice < 0) {
+        return true;
+      }
+      if (transaction.notes) {
+        const normalized = transaction.notes.toLowerCase();
+        if (normalized.includes("repay") || normalized.includes("thu")) {
+          return true;
+        }
+      }
+      return false;
+    },
+    [isDebtTransaction]
+  );
+
+  const tagByTransactionId = useMemo(() => {
+    const map = new Map<string, string>();
+    transactions.forEach((transaction) => {
+      const tag = formatDateTag(transaction.date);
+      if (tag) {
+        map.set(transaction.id, tag);
+      }
+    });
+    return map;
+  }, [transactions]);
+
+  const sortedTagValues = useMemo(() => {
+    const weights = new Map<string, number>();
+    transactions.forEach((transaction) => {
+      const tag = tagByTransactionId.get(transaction.id);
+      if (!tag) {
+        return;
+      }
+      const weight = getDateTagSortValue(tag);
+      const existing = weights.get(tag) ?? Number.NEGATIVE_INFINITY;
+      if (weight > existing) {
+        weights.set(tag, weight);
+      }
+    });
+    return Array.from(weights.entries())
+      .sort(([, a], [, b]) => b - a)
+      .map(([tag]) => tag);
+  }, [tagByTransactionId, transactions]);
+
+  const debtTransactions = useMemo(
+    () => transactions.filter((transaction) => isDebtTransaction(transaction)),
+    [transactions, isDebtTransaction]
+  );
+
+  const debtTagValues = useMemo(() => {
+    const tags = new Set<string>();
+    debtTransactions.forEach((transaction) => {
+      const tag = tagByTransactionId.get(transaction.id);
+      if (tag) {
+        tags.add(tag);
+      }
+    });
+    return Array.from(tags).sort((a, b) => getDateTagSortValue(b) - getDateTagSortValue(a));
+  }, [debtTransactions, tagByTransactionId]);
+
+  const debtRepayTagValues = useMemo(() => {
+    const tags = new Set<string>();
+    debtTransactions.forEach((transaction) => {
+      if (!isRepaymentTransaction(transaction)) {
+        return;
+      }
+      const tag = tagByTransactionId.get(transaction.id);
+      if (tag) {
+        tags.add(tag);
+      }
+    });
+    return Array.from(tags).sort((a, b) => getDateTagSortValue(b) - getDateTagSortValue(a));
+  }, [debtTransactions, isRepaymentTransaction, tagByTransactionId]);
+
+  const currentDebtTag = useMemo(() => formatDateTag(new Date()), []);
+  const previousDebtTag = useMemo(() => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - 1, 1);
+    return formatDateTag(date);
+  }, []);
+
+  const tagOptions = useMemo(
+    () => [
+      { value: "all", label: "All tags" },
+      ...sortedTagValues.map((tag) => ({ value: tag, label: tag })),
+    ],
+    [sortedTagValues]
+  );
+
+  const debtCycleOptions = useMemo(() => {
+    const hasCurrent = currentDebtTag ? debtTagValues.includes(currentDebtTag) : false;
+    const hasLast = previousDebtTag ? debtTagValues.includes(previousDebtTag) : false;
+    const base: { value: string; label: string; disabled?: boolean }[] = [
+      { value: "all", label: "All debt cycles" },
+      {
+        value: "current",
+        label: currentDebtTag ? `Current month (${currentDebtTag})` : "Current month",
+        disabled: !hasCurrent,
+      },
+      {
+        value: "last",
+        label: previousDebtTag ? `Last month (${previousDebtTag})` : "Last month",
+        disabled: !hasLast,
+      },
+    ];
+
+    debtTagValues.forEach((tag) => {
+      base.push({ value: `tag:${tag}`, label: `Cycle ${tag}` });
+    });
+
+    return base;
+  }, [currentDebtTag, debtTagValues, previousDebtTag]);
+
+  const debtRepayTagOptions = useMemo(() => {
+    const base: { value: string; label: string }[] = [
+      { value: "all", label: "All repayments" },
+      { value: "none", label: "No repayments" },
+    ];
+    debtRepayTagValues.forEach((tag) => {
+      base.push({ value: tag, label: `Repay ${tag}` });
+    });
+    return base;
+  }, [debtRepayTagValues]);
+
+  const natureMenuItems = useMemo(
+    () => natureTabs.map((tab) => ({ ...tab, label: t(tab.labelKey) })),
+    [t]
+  );
+
+  useEffect(() => {
+    if (!tagOptions.some((option) => option.value === tagFilter)) {
+      setTagFilter("all");
+    }
+  }, [tagFilter, tagOptions]);
+
+  useEffect(() => {
+    if (!debtCycleOptions.some((option) => option.value === debtCycleFilter)) {
+      setDebtCycleFilter("all");
+    }
+  }, [debtCycleFilter, debtCycleOptions]);
+
+  useEffect(() => {
+    if (!debtRepayTagOptions.some((option) => option.value === debtRepayTagFilter)) {
+      setDebtRepayTagFilter("all");
+    }
+  }, [debtRepayTagFilter, debtRepayTagOptions]);
+
   const dataColumns = useMemo<DataColumn[]>(
     () => [
       {
         id: "date",
         label: t("transactions.tableHeaders.date"),
         minWidth: 160,
-        render: (transaction) => <span className="text-gray-700">{formatDate(transaction.date)}</span>,
+        render: (transaction) => {
+          const tag = tagByTransactionId.get(transaction.id);
+          return (
+            <div className="space-y-1">
+              <span className="block text-gray-700">{formatDate(transaction.date)}</span>
+              {tag ? <TagBadge value={tag} /> : null}
+            </div>
+          );
+        },
       },
       {
         id: "category",
@@ -670,7 +913,7 @@ export default function TransactionsView({
         summary: (summary) => formatNumber(summary.finalPrice),
       },
     ],
-    [amountWordsMap, t]
+    [amountWordsMap, tagByTransactionId, t]
   );
 
   const columnConfigById = useMemo(() => {
@@ -713,9 +956,9 @@ export default function TransactionsView({
     [columnConfigById, columnOrder]
   );
 
-  const handleResizeMove = useCallback((event: MouseEvent) => {
+  const handleResizeMove = useCallback((event: PointerEvent) => {
     const info = resizeInfoRef.current;
-    if (!info) {
+    if (!info || event.pointerId !== info.pointerId) {
       return;
     }
     const delta = event.clientX - info.startX;
@@ -723,14 +966,28 @@ export default function TransactionsView({
     setColumnWidths((prev) => ({ ...prev, [info.columnId]: nextWidth }));
   }, []);
 
-  const handleResizeStop = useCallback(() => {
+  const handleResizeStop = useCallback((event?: PointerEvent) => {
+    const info = resizeInfoRef.current;
+    if (event && info && event.pointerId !== info.pointerId) {
+      return;
+    }
     resizeInfoRef.current = null;
-    document.removeEventListener("mousemove", handleResizeMove);
-    document.removeEventListener("mouseup", handleResizeStop);
+    if (typeof window !== "undefined") {
+      window.removeEventListener("pointermove", handleResizeMove);
+      window.removeEventListener("pointerup", handleResizeStop);
+      window.removeEventListener("pointercancel", handleResizeStop);
+    }
+    if (typeof document !== "undefined" && bodyUserSelectRef.current != null) {
+      document.body.style.userSelect = bodyUserSelectRef.current;
+      bodyUserSelectRef.current = null;
+    }
   }, [handleResizeMove]);
 
   const handleResizeStart = useCallback(
-    (event: ReactMouseEvent<HTMLSpanElement>, columnId: DataColumnId) => {
+    (event: ReactPointerEvent<HTMLSpanElement>, columnId: DataColumnId) => {
+      if (event.pointerType === "mouse" && event.button !== 0) {
+        return;
+      }
       event.preventDefault();
       const headerCell =
         (event.currentTarget.closest("th") as HTMLElement | null) ?? (event.currentTarget.parentElement as HTMLElement | null);
@@ -739,9 +996,17 @@ export default function TransactionsView({
         columnId,
         startX: event.clientX,
         startWidth,
+        pointerId: event.pointerId,
       };
-      document.addEventListener("mousemove", handleResizeMove);
-      document.addEventListener("mouseup", handleResizeStop);
+      if (typeof document !== "undefined") {
+        bodyUserSelectRef.current = document.body.style.userSelect;
+        document.body.style.userSelect = "none";
+      }
+      if (typeof window !== "undefined") {
+        window.addEventListener("pointermove", handleResizeMove);
+        window.addEventListener("pointerup", handleResizeStop);
+        window.addEventListener("pointercancel", handleResizeStop);
+      }
     },
     [handleResizeMove, handleResizeStop]
   );
@@ -842,9 +1107,76 @@ export default function TransactionsView({
     return Array.from(years).sort((a, b) => b - a);
   }, [filters.year]);
 
-  const visibleTransactions = showSelectedOnly
-    ? transactions.filter((transaction) => selectedIds.has(transaction.id))
-    : transactions;
+  const visibleTransactions = useMemo(() => {
+    const base = showSelectedOnly
+      ? transactions.filter((transaction) => selectedIds.has(transaction.id))
+      : transactions;
+
+    return base
+      .filter((transaction) => {
+        const tag = tagByTransactionId.get(transaction.id) ?? null;
+
+        if (tagFilter !== "all" && tag !== tagFilter) {
+          return false;
+        }
+
+        if (debtCycleFilter === "current") {
+          if (!isDebtTransaction(transaction)) {
+            return false;
+          }
+          if (!currentDebtTag) {
+            return false;
+          }
+          return tag === currentDebtTag;
+        }
+
+        if (debtCycleFilter === "last") {
+          if (!isDebtTransaction(transaction)) {
+            return false;
+          }
+          if (!previousDebtTag) {
+            return false;
+          }
+          return tag === previousDebtTag;
+        }
+
+        if (debtCycleFilter.startsWith("tag:")) {
+          if (!isDebtTransaction(transaction)) {
+            return false;
+          }
+          const target = debtCycleFilter.slice(4);
+          return tag === target;
+        }
+
+        return true;
+      })
+      .filter((transaction) => {
+        if (debtRepayTagFilter === "all") {
+          return true;
+        }
+        const isRepayment = isRepaymentTransaction(transaction);
+        if (debtRepayTagFilter === "none") {
+          return !isRepayment;
+        }
+        if (!isRepayment) {
+          return false;
+        }
+        const tag = tagByTransactionId.get(transaction.id);
+        return tag === debtRepayTagFilter;
+      });
+  }, [
+    showSelectedOnly,
+    transactions,
+    selectedIds,
+    tagByTransactionId,
+    tagFilter,
+    debtCycleFilter,
+    isDebtTransaction,
+    currentDebtTag,
+    previousDebtTag,
+    debtRepayTagFilter,
+    isRepaymentTransaction,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / filters.pageSize));
   const allVisibleSelected =
@@ -1029,6 +1361,9 @@ export default function TransactionsView({
     startTransition(() => {
       router.push(pathname);
     });
+    setTagFilter("all");
+    setDebtCycleFilter("all");
+    setDebtRepayTagFilter("all");
     setSelectedIds(new Set());
     setShowSelectedOnly(false);
     resetHighlightTimeoutRef.current = setTimeout(() => setResetHighlighted(false), 1500);
@@ -1227,112 +1562,51 @@ export default function TransactionsView({
             <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{errorMessage}</div>
           )}
           <div className="flex flex-col gap-4 border-b border-gray-200 bg-gray-50 px-4 py-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div className="flex w-full flex-col gap-3 md:flex-row md:items-start md:gap-4">
-                <div className="w-full md:max-w-xs">
-                  <div className="relative">
-                    <input
-                      ref={searchInputRef}
-                      type="text"
-                      role="searchbox"
-                      value={searchValue}
-                      onChange={(event) => setSearchValue(event.target.value)}
-                      placeholder={t("common.searchPlaceholder")}
-                      aria-label={t("common.searchPlaceholder")}
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-16 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    />
-                    {searchValue ? (
-                      <div className="absolute inset-y-1.5 right-2 flex items-center">
-                        <Tooltip label={t("common.clear")}>
-                          <button
-                            type="button"
-                            onClick={handleSearchClear}
-                            className="inline-flex items-center justify-center rounded-md border border-transparent p-2 text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
-                            aria-label={t("common.clear")}
-                          >
-                            <ClearIcon />
-                          </button>
-                        </Tooltip>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="flex flex-col items-stretch gap-2 md:w-auto">
-                  <Tooltip label={t("transactions.actions.addTooltip")}>
-                    <button
-                      type="button"
-                      onClick={handleOpenAddModal}
-                      className="inline-flex items-center justify-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-                    >
-                      <PlusIcon />
-                      {t("transactions.addButton")}
-                    </button>
-                  </Tooltip>
-                  {shouldShowSelectedToggle ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowSelectedOnly((prev) => !prev)}
-                      className={`${
-                        showSelectedOnly
-                          ? "inline-flex items-center gap-2 rounded-full border border-indigo-600 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm"
-                          : "inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
-                      }`}
-                      aria-pressed={showSelectedOnly}
-                    >
-                      <CheckCircleIcon active={showSelectedOnly} />
-                      <span>{t("transactions.filters.showOnlySelected")}</span>
-                      {selectedIds.size > 0 ? (
-                        <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">
-                          {selectedIds.size}
-                        </span>
-                      ) : null}
-                    </button>
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 xl:flex-1">
+                <div className="relative flex-1">
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    role="searchbox"
+                    value={searchValue}
+                    onChange={(event) => setSearchValue(event.target.value)}
+                    placeholder={t("common.searchPlaceholder")}
+                    aria-label={t("common.searchPlaceholder")}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-16 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  />
+                  {searchValue ? (
+                    <div className="absolute inset-y-1.5 right-2 flex items-center">
+                      <Tooltip label={t("common.clear")}>
+                        <button
+                          type="button"
+                          onClick={handleSearchClear}
+                          className="inline-flex items-center justify-center rounded-md border border-transparent p-2 text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
+                          aria-label={t("common.clear")}
+                        >
+                          <ClearIcon />
+                        </button>
+                      </Tooltip>
+                    </div>
                   ) : null}
                 </div>
-              </div>
-            </div>
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                {natureTabs.map((tab) => {
-                  const palette = natureTabPalette[tab.value];
-                  const isActive = filters.nature === tab.value;
-                  return (
-                    <button
-                      key={tab.value}
-                      type="button"
-                      onClick={() => updateFilters({ nature: tab.value })}
-                      className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${
-                        isActive ? palette.active : palette.inactive
-                      }`}
-                    >
-                      {t(tab.labelKey)}
-                    </button>
-                  );
-                })}
-                {filters.personId && (
+                <Tooltip label={t("transactions.actions.addTooltip")}>
                   <button
                     type="button"
-                    onClick={() => updateFilters({ personId: undefined })}
-                    className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-700 shadow-sm transition hover:bg-indigo-50"
+                    onClick={handleOpenAddModal}
+                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
                   >
-                    <span>
-                      {t("transactions.filters.personFilter")}: {activeBorrowerName ?? t("transactions.filters.unknownPerson")}
-                    </span>
-                    <span aria-hidden="true">×</span>
+                    <PlusIcon />
+                    {t("transactions.addButton")}
                   </button>
-                )}
-                <DeleteSelectedButton selectedIds={selectedIdsArray} onDeleted={clearSelection} />
-                {selectedIdsArray.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleDeselectAll}
-                    className="inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
-                  >
-                    {t("transactions.actions.deselect")}
-                  </button>
-                )}
+                </Tooltip>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+                <NatureHoverMenu
+                  items={natureMenuItems}
+                  activeValue={filters.nature}
+                  onSelect={(value) => updateFilters({ nature: value })}
+                />
                 <Tooltip
                   label={
                     isCustomizingTable
@@ -1358,13 +1632,105 @@ export default function TransactionsView({
                     <ColumnsIcon active={isCustomizingTable} />
                   </button>
                 </Tooltip>
-                {isCustomizingTable && (
+                <button
+                  type="button"
+                  onClick={handleResetLayout}
+                  className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                >
+                  <RefreshIcon />
+                  {t("transactions.table.resetLayout")}
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <label htmlFor="transaction-tag-filter">Tags</label>
+                  <select
+                    id="transaction-tag-filter"
+                    value={tagFilter}
+                    onChange={(event) => setTagFilter(event.target.value)}
+                    className="min-w-[160px] rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal uppercase tracking-normal shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  >
+                    {tagOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <label htmlFor="transaction-debt-filter">Debt</label>
+                  <select
+                    id="transaction-debt-filter"
+                    value={debtCycleFilter}
+                    onChange={(event) => setDebtCycleFilter(event.target.value)}
+                    className="min-w-[180px] rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal uppercase tracking-normal shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  >
+                    {debtCycleOptions.map((option) => (
+                      <option key={option.value} value={option.value} disabled={option.disabled}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <label htmlFor="transaction-debt-repay-filter">Debt Repay Tag</label>
+                  <select
+                    id="transaction-debt-repay-filter"
+                    value={debtRepayTagFilter}
+                    onChange={(event) => setDebtRepayTagFilter(event.target.value)}
+                    className="min-w-[200px] rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal uppercase tracking-normal shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  >
+                    {debtRepayTagOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {filters.personId && (
                   <button
                     type="button"
-                    onClick={handleResetLayout}
+                    onClick={() => updateFilters({ personId: undefined })}
+                    className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-700 shadow-sm transition hover:bg-indigo-50"
+                  >
+                    <span>
+                      {t("transactions.filters.personFilter")}: {activeBorrowerName ?? t("transactions.filters.unknownPerson")}
+                    </span>
+                    <span aria-hidden="true">×</span>
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {shouldShowSelectedToggle ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowSelectedOnly((prev) => !prev)}
+                    className={`${
+                      showSelectedOnly
+                        ? "inline-flex items-center gap-2 rounded-full border border-indigo-600 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm"
+                        : "inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                    }`}
+                    aria-pressed={showSelectedOnly}
+                  >
+                    <CheckCircleIcon active={showSelectedOnly} />
+                    <span>{t("transactions.filters.showOnlySelected")}</span>
+                    {selectedIds.size > 0 ? (
+                      <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">
+                        {selectedIds.size}
+                      </span>
+                    ) : null}
+                  </button>
+                ) : null}
+                <DeleteSelectedButton selectedIds={selectedIdsArray} onDeleted={clearSelection} />
+                {selectedIdsArray.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleDeselectAll}
                     className="inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
                   >
-                    {t("transactions.table.resetLayout")}
+                    {t("transactions.actions.deselect")}
                   </button>
                 )}
               </div>
@@ -1411,9 +1777,10 @@ export default function TransactionsView({
                           role="separator"
                           aria-hidden="true"
                           onMouseDown={(event) => handleResizeStart(event, column.id)}
-                          className="absolute top-0 h-full w-3 cursor-col-resize"
-                          style={{ right: -6 }}
-                        />
+                          className="group absolute top-0 right-0 flex h-full w-3 translate-x-1/2 cursor-col-resize select-none items-center justify-center"
+                        >
+                          <span className="h-8 w-px rounded bg-transparent transition group-hover:bg-indigo-400" />
+                        </span>
                       </th>
                     );
                   })}
@@ -1576,7 +1943,7 @@ export default function TransactionsView({
     {isAddModalOpen ? (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
         <div className="absolute inset-0" aria-hidden="true" />
-        <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="relative z-10 flex w-full max-h-[90vh] max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
           <TransactionForm
             accounts={formAccounts}
             subcategories={formSubcategories}
