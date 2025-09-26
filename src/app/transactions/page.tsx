@@ -47,6 +47,10 @@ const currentYear = now.getFullYear();
 const currentMonth = now.getMonth() + 1;
 const currentQuarter = Math.floor((currentMonth - 1) / 3) + 1;
 
+function isPageSizeOption(value: number): value is (typeof PAGE_SIZE_OPTIONS)[number] {
+  return (PAGE_SIZE_OPTIONS as readonly number[]).includes(value);
+}
+
 function parseNumber(value: string | undefined, fallback: number, min?: number, max?: number) {
   if (!value) return fallback;
   const parsed = Number.parseInt(value, 10);
@@ -97,7 +101,7 @@ function sanitizeFilters(searchParams?: Record<string, string | string[] | undef
     DEFAULT_PAGE_SIZE,
     1
   );
-  const pageSize = PAGE_SIZE_OPTIONS.includes(rawPageSize) ? rawPageSize : DEFAULT_PAGE_SIZE;
+  const pageSize = isPageSizeOption(rawPageSize) ? rawPageSize : DEFAULT_PAGE_SIZE;
 
   return {
     nature,
