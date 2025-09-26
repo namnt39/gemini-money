@@ -135,28 +135,40 @@ const DEFAULT_TRANSFER_CATEGORY: Subcategory = {
   ],
 };
 
-const hasMeaningfulError = (error: unknown) => {
-  if (!error || typeof error !== "object") {
-    return false;
+const extractMeaningfulError = (error: unknown): string | null => {
+  if (!error) {
+    return null;
   }
-  if ("message" in error && typeof (error as { message?: unknown }).message === "string") {
-    return Boolean((error as { message?: string }).message);
+
+  if (error instanceof Error) {
+    return error.message.trim() ? error.message : null;
   }
-  if ("details" in error && typeof (error as { details?: unknown }).details === "string") {
-    return Boolean((error as { details?: string }).details);
+
+  if (typeof error !== "object") {
+    return null;
   }
-  if ("hint" in error && typeof (error as { hint?: unknown }).hint === "string") {
-    return Boolean((error as { hint?: string }).hint);
-  }
-  return Object.entries(error).some(([, value]) => {
-    if (value == null) {
-      return false;
+
+  const { message, details, hint, code } = error as {
+    message?: unknown;
+    details?: unknown;
+    hint?: unknown;
+    code?: unknown;
+  };
+
+  const candidates = [message, details, hint, code];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
     }
-    if (typeof value === "string") {
-      return value.trim().length > 0;
-    }
-    return true;
-  });
+  }
+
+  const serialized = Object.entries(error)
+    .filter(([, value]) => typeof value === "string" && value.trim().length > 0)
+    .map(([key, value]) => `${key}: ${(value as string).trim()}`)
+    .join(", ");
+
+  return serialized.length > 0 ? serialized : null;
 };
 
 export async function loadTransactionFormData(): Promise<FormDataResult> {
@@ -225,17 +237,21 @@ export async function loadTransactionFormData(): Promise<FormDataResult> {
     { data: shops, error: shopsError },
   ] = await Promise.all([accountsPromise, subcategoriesPromise, peoplePromise, shopsPromise]);
 
-  if (hasMeaningfulError(accountsError)) {
-    console.error("Failed to fetch accounts:", accountsError);
+  const accountsErrorMessage = extractMeaningfulError(accountsError);
+  if (accountsErrorMessage) {
+    console.error("Failed to fetch accounts:", accountsErrorMessage);
   }
-  if (hasMeaningfulError(subcategoriesError)) {
-    console.error("Failed to fetch subcategories:", subcategoriesError);
+  const subcategoriesErrorMessage = extractMeaningfulError(subcategoriesError);
+  if (subcategoriesErrorMessage) {
+    console.error("Failed to fetch subcategories:", subcategoriesErrorMessage);
   }
-  if (hasMeaningfulError(peopleError)) {
-    console.error("Failed to fetch people:", peopleError);
+  const peopleErrorMessage = extractMeaningfulError(peopleError);
+  if (peopleErrorMessage) {
+    console.error("Failed to fetch people:", peopleErrorMessage);
   }
-  if (hasMeaningfulError(shopsError)) {
-    console.error("Failed to fetch shops:", shopsError);
+  const shopsErrorMessage = extractMeaningfulError(shopsError);
+  if (shopsErrorMessage) {
+    console.error("Failed to fetch shops:", shopsErrorMessage);
   }
 
   type RawSubcategory = {
@@ -305,9 +321,10 @@ export async function loadShops(): Promise<{ shops: Shop[]; errorMessage?: strin
     .order("name", { ascending: true });
 
   let errorMessage: string | undefined;
-  if (hasMeaningfulError(error)) {
+  const loadErrorMessage = extractMeaningfulError(error);
+  if (loadErrorMessage) {
     errorMessage = error?.message || "Unable to fetch shops.";
-    console.error("Failed to fetch shops:", error);
+    console.error("Failed to fetch shops:", loadErrorMessage);
   }
 
   const typed = (data as Shop[] | null) || [];

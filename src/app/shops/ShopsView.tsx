@@ -264,7 +264,7 @@ export default function ShopsView({ shops, errorMessage }: ShopsViewProps) {
               <button
                 type="button"
                 onClick={() => setAddModalOpen(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 whitespace-nowrap"
               >
                 {addShopLabel}
               </button>
