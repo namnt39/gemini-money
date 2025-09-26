@@ -30,10 +30,15 @@ export type TransactionListItem = {
   cashbackAmount: number | null;
   cashbackSource?: "percent" | "amount" | null;
   notes: string | null;
+  fromAccountId?: string | null;
   fromAccount?: { id: string | null; name: string | null; image_url: string | null } | null;
+  toAccountId?: string | null;
   toAccount?: { id: string | null; name: string | null; image_url: string | null } | null;
+  personId?: string | null;
   person?: { id: string | null; name: string | null; image_url: string | null } | null;
   categoryName?: string | null;
   subcategoryName?: string | null;
+  subcategoryId?: string | null;
+  shopId?: string | null;
   transactionNature?: string | null;
 };

@@ -189,3 +189,18 @@ export async function deleteCategory(input: DeleteCategoryInput): Promise<Action
     subcategoryId: subcategoryId ?? undefined,
   };
 }
+
+export async function deleteCategoriesBulk(inputs: DeleteCategoryInput[]): Promise<ActionResult> {
+  if (!Array.isArray(inputs) || inputs.length === 0) {
+    return { success: false, message: "No categories selected." };
+  }
+
+  for (const input of inputs) {
+    const result = await deleteCategory(input);
+    if (!result.success) {
+      return { success: false, message: result.message ?? "Unable to delete selected categories." };
+    }
+  }
+
+  return { success: true, message: "Categories deleted successfully." };
+}

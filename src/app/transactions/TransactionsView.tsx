@@ -14,7 +14,7 @@ import { ClearIcon } from "@/components/Icons";
 import { deleteTransaction, deleteTransactions } from "./actions";
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "./constants";
 import TransactionForm from "./add/TransactionForm";
-import type { Account, Subcategory, Person } from "./add/formData";
+import type { Account, Subcategory, Person, Shop } from "./add/formData";
 
 import type { AccountRecord, TransactionFilters, TransactionListItem } from "./types";
 
@@ -27,6 +27,7 @@ type TransactionsViewProps = {
   formAccounts: Account[];
   formSubcategories: Subcategory[];
   formPeople: Person[];
+  formShops: Shop[];
 };
 
 type NatureTab = {
@@ -305,15 +306,12 @@ const TrashIcon = () => (
 
 type ActionButtonsProps = {
   transactionId: string;
+  onEdit: () => void;
 };
 
-function ActionButtons({ transactionId }: ActionButtonsProps) {
+function ActionButtons({ transactionId, onEdit }: ActionButtonsProps) {
   const t = createTranslator();
   const [isPending, startTransition] = useTransition();
-
-  const handleEdit = useCallback(() => {
-    alert(t("transactions.actions.editPlaceholder"));
-  }, [t]);
 
   const handleDelete = useCallback(() => {
     const confirmed = confirm(t("delete.confirm"));
@@ -335,7 +333,11 @@ function ActionButtons({ transactionId }: ActionButtonsProps) {
       <Tooltip label={t("transactions.actions.editTooltip")}>
         <button
           type="button"
-          onClick={handleEdit}
+          onClick={(event) => {
+            event.stopPropagation();
+            onEdit();
+          }}
+          onDoubleClick={(event) => event.stopPropagation()}
           className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-600 transition hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1"
           aria-label={t("transactions.actions.editTooltip")}
         >
@@ -347,6 +349,7 @@ function ActionButtons({ transactionId }: ActionButtonsProps) {
           type="button"
           onClick={handleDelete}
           disabled={isPending}
+          onDoubleClick={(event) => event.stopPropagation()}
           className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 bg-white text-red-600 transition hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60"
           aria-label={t("transactions.actions.deleteTooltip")}
         >
@@ -414,6 +417,7 @@ export default function TransactionsView({
   formAccounts,
   formSubcategories,
   formPeople,
+  formShops,
 }: TransactionsViewProps) {
   const t = createTranslator();
   const router = useRouter();
@@ -436,6 +440,7 @@ export default function TransactionsView({
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [isAddModalOpen, setAddModalOpen] = useState(false);
   const [modalInitialTab, setModalInitialTab] = useState<FormTab>("expense");
+  const [editingTransaction, setEditingTransaction] = useState<TransactionListItem | null>(null);
   const defaultTemporalValues = useMemo(() => {
     const now = new Date();
     const month = now.getMonth() + 1;
@@ -853,12 +858,47 @@ export default function TransactionsView({
       initialTab = "transfer";
     }
     setModalInitialTab(initialTab);
+    setEditingTransaction(null);
     setAddModalOpen(true);
   }, [filters.nature]);
 
   const handleCloseAddModal = useCallback(() => {
     setAddModalOpen(false);
+    setEditingTransaction(null);
   }, []);
+
+  const determineInitialTabFromTransaction = useCallback((transaction: TransactionListItem): FormTab => {
+    const nature = transaction.transactionNature ?? null;
+    if (nature === "IN") {
+      return "income";
+    }
+    if (nature === "TF") {
+      return "transfer";
+    }
+    if (nature === "DE") {
+      return "debt";
+    }
+    if (transaction.personId) {
+      return "debt";
+    }
+    if (transaction.fromAccountId && transaction.toAccountId) {
+      return "transfer";
+    }
+    if (transaction.toAccountId && !transaction.fromAccountId) {
+      return "income";
+    }
+    return "expense";
+  }, []);
+
+  const handleEditTransaction = useCallback(
+    (transaction: TransactionListItem) => {
+      const initialTab = determineInitialTabFromTransaction(transaction);
+      setModalInitialTab(initialTab);
+      setEditingTransaction(transaction);
+      setAddModalOpen(true);
+    },
+    [determineInitialTabFromTransaction]
+  );
 
   const currentReturnPath = useMemo(() => {
     const query = searchParams.toString();
@@ -997,10 +1037,16 @@ export default function TransactionsView({
   const monthValue = filters.month === "all" ? "all" : String(filters.month);
   const quarterValue = filters.quarter === "all" ? "all" : String(filters.quarter);
   const selectedIdsArray = useMemo(() => Array.from(selectedIds), [selectedIds]);
+  const shouldShowSelectedToggle = selectedIds.size > 0;
   const selectedTransactions = useMemo(
-    () => transactions.filter((transaction) => selectedIds.has(transaction.id)),
+    () => (selectedIds.size === 0 ? [] : transactions.filter((transaction) => selectedIds.has(transaction.id))),
     [transactions, selectedIds]
   );
+  useEffect(() => {
+    if (selectedIds.size === 0 && showSelectedOnly) {
+      setShowSelectedOnly(false);
+    }
+  }, [selectedIds, showSelectedOnly]);
   const activeBorrowerName = useMemo(() => {
     if (!filters.personId) {
       return null;
@@ -1181,68 +1227,72 @@ export default function TransactionsView({
             <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{errorMessage}</div>
           )}
           <div className="flex flex-col gap-4 border-b border-gray-200 bg-gray-50 px-4 py-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="w-full md:max-w-lg md:flex-1">
-                <div className="relative">
-                  <input
-                    ref={searchInputRef}
-                    type="search"
-                    value={searchValue}
-                    onChange={(event) => setSearchValue(event.target.value)}
-                    placeholder={t("common.searchPlaceholder")}
-                    aria-label={t("common.searchPlaceholder")}
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-24 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                  />
-                  {searchValue ? (
-                    <div className="absolute inset-y-1.5 right-2 flex items-center">
-                      <Tooltip label={t("common.clear")}>
-                        <button
-                          type="button"
-                          onClick={handleSearchClear}
-                          className="inline-flex items-center justify-center rounded-md border border-transparent p-2 text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
-                          aria-label={t("common.clear")}
-                        >
-                          <ClearIcon />
-                        </button>
-                      </Tooltip>
-                    </div>
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="flex w-full flex-col gap-3 md:flex-row md:items-start md:gap-4">
+                <div className="w-full md:max-w-xs">
+                  <div className="relative">
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      role="searchbox"
+                      value={searchValue}
+                      onChange={(event) => setSearchValue(event.target.value)}
+                      placeholder={t("common.searchPlaceholder")}
+                      aria-label={t("common.searchPlaceholder")}
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-16 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    />
+                    {searchValue ? (
+                      <div className="absolute inset-y-1.5 right-2 flex items-center">
+                        <Tooltip label={t("common.clear")}>
+                          <button
+                            type="button"
+                            onClick={handleSearchClear}
+                            className="inline-flex items-center justify-center rounded-md border border-transparent p-2 text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
+                            aria-label={t("common.clear")}
+                          >
+                            <ClearIcon />
+                          </button>
+                        </Tooltip>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="flex flex-col items-stretch gap-2 md:w-auto">
+                  <Tooltip label={t("transactions.actions.addTooltip")}>
+                    <button
+                      type="button"
+                      onClick={handleOpenAddModal}
+                      className="inline-flex items-center justify-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+                    >
+                      <PlusIcon />
+                      {t("transactions.addButton")}
+                    </button>
+                  </Tooltip>
+                  {shouldShowSelectedToggle ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowSelectedOnly((prev) => !prev)}
+                      className={`${
+                        showSelectedOnly
+                          ? "inline-flex items-center gap-2 rounded-full border border-indigo-600 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm"
+                          : "inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                      }`}
+                      aria-pressed={showSelectedOnly}
+                    >
+                      <CheckCircleIcon active={showSelectedOnly} />
+                      <span>{t("transactions.filters.showOnlySelected")}</span>
+                      {selectedIds.size > 0 ? (
+                        <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">
+                          {selectedIds.size}
+                        </span>
+                      ) : null}
+                    </button>
                   ) : null}
                 </div>
-              </div>
-              <div className="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowSelectedOnly((prev) => !prev)}
-                  className={`${
-                    showSelectedOnly
-                      ? "inline-flex items-center gap-2 rounded-full border border-indigo-600 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm"
-                      : "inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
-                  } ${selectedIds.size === 0 && !showSelectedOnly ? "opacity-70" : ""}`}
-                  aria-pressed={showSelectedOnly}
-                  disabled={selectedIds.size === 0 && !showSelectedOnly}
-                >
-                  <CheckCircleIcon active={showSelectedOnly} />
-                  <span>{t("transactions.filters.showOnlySelected")}</span>
-                  {selectedIds.size > 0 ? (
-                    <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">
-                      {selectedIds.size}
-                    </span>
-                  ) : null}
-                </button>
               </div>
             </div>
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-wrap items-center gap-2">
-                <Tooltip label={t("transactions.actions.addTooltip")}>
-                  <button
-                    type="button"
-                    onClick={handleOpenAddModal}
-                    className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-                  >
-                    <PlusIcon />
-                    {t("transactions.addButton")}
-                  </button>
-                </Tooltip>
                 {natureTabs.map((tab) => {
                   const palette = natureTabPalette[tab.value];
                   const isActive = filters.nature === tab.value;
@@ -1380,9 +1430,13 @@ export default function TransactionsView({
                   return (
                     <tr
                       key={transaction.id}
-                      className={`border-b border-gray-200 ${rowBackgroundClass}`}
+                      className={`border-b border-gray-200 ${rowBackgroundClass} cursor-pointer hover:bg-indigo-50/70`}
+                      onDoubleClick={() => handleEditTransaction(transaction)}
                     >
-                      <td className={`sticky left-0 z-20 border-r border-gray-200 px-4 py-3 ${rowBackgroundClass}`}>
+                      <td
+                        className={`sticky left-0 z-20 border-r border-gray-200 px-4 py-3 ${rowBackgroundClass}`}
+                        onDoubleClick={(event) => event.stopPropagation()}
+                      >
                         <input
                           type="checkbox"
                           className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
@@ -1400,13 +1454,20 @@ export default function TransactionsView({
                             key={column.id}
                             className={`px-4 py-3 ${alignClass} ${borderClass}`}
                             style={{ width, minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
+                            onDoubleClick={(event) => event.stopPropagation()}
                           >
                             {column.render(transaction)}
                           </td>
                         );
                       })}
-                      <td className="border-l border-gray-200 px-4 py-3 text-right">
-                        <ActionButtons transactionId={transaction.id} />
+                      <td
+                        className="border-l border-gray-200 px-4 py-3 text-right"
+                        onDoubleClick={(event) => event.stopPropagation()}
+                      >
+                        <ActionButtons
+                          transactionId={transaction.id}
+                          onEdit={() => handleEditTransaction(transaction)}
+                        />
                       </td>
                     </tr>
                   );
@@ -1520,8 +1581,11 @@ export default function TransactionsView({
             accounts={formAccounts}
             subcategories={formSubcategories}
             people={formPeople}
+            shops={formShops}
             returnTo={currentReturnPath}
             initialTab={modalInitialTab}
+            mode={editingTransaction ? "edit" : "create"}
+            initialTransaction={editingTransaction ?? undefined}
             onClose={handleCloseAddModal}
             layout="modal"
           />

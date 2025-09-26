@@ -12,7 +12,7 @@ import { normalizeTransactionNature } from "@/lib/transactionNature";
 import { ClearIcon } from "@/components/Icons";
 
 import type { CategoryRecord } from "./page";
-import { deleteCategory } from "./actions";
+import { deleteCategory, deleteCategoriesBulk } from "./actions";
 
 type NatureFilter = "all" | "EX" | "IN" | "TF" | "DE";
 
@@ -92,6 +92,7 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   const filteredCategories = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -128,6 +129,12 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
   const allVisibleSelected = useMemo(() => {
     return filteredCategories.length > 0 && filteredCategories.every((category) => selectedIds.has(category.id));
   }, [filteredCategories, selectedIds]);
+
+  const selectedRecords = useMemo(
+    () => categories.filter((category) => selectedIds.has(category.id)),
+    [categories, selectedIds]
+  );
+  const hasSelection = selectedRecords.length > 0;
 
   const handleSelectAll = useCallback(() => {
     setSelectedIds((prev) => {
@@ -192,6 +199,40 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
     [router, showSuccess, t]
   );
 
+  const handleDeleteSelected = useCallback(async () => {
+    if (selectedRecords.length === 0) {
+      return;
+    }
+    const shouldDelete = confirm(t("categories.actions.deleteAllConfirm"));
+    if (!shouldDelete) {
+      return;
+    }
+
+    setActionError(null);
+    setIsBulkDeleting(true);
+
+    try {
+      const payload = selectedRecords.map((record) => ({
+        categoryId: record.categoryId,
+        subcategoryId: record.subcategoryId ?? undefined,
+      }));
+      const result = await deleteCategoriesBulk(payload);
+      if (!result.success) {
+        setActionError(result.message || t("categories.actions.deleteAllError"));
+        return;
+      }
+
+      showSuccess(t("categories.actions.deleteAllSuccess"));
+      setSelectedIds(new Set());
+      router.refresh();
+    } catch (error) {
+      console.error("Unable to delete selected categories:", error);
+      setActionError(t("categories.actions.deleteAllError"));
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  }, [router, selectedRecords, showSuccess, t]);
+
   const natureLabels = useMemo(() => {
     return {
       all: t("categories.filters.allTypes"),
@@ -250,19 +291,36 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-start sm:gap-4">
-            <Link
-              href="/categories/add"
-              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-            >
-              {t("categories.addButton")}
-            </Link>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <Link
+                href="/categories/add"
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+              >
+                {t("categories.addButton")}
+              </Link>
+              <button
+                type="button"
+                onClick={handleDeleteSelected}
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={!hasSelection || isBulkDeleting}
+                aria-disabled={!hasSelection || isBulkDeleting}
+                aria-busy={isBulkDeleting}
+              >
+                {isBulkDeleting ? (
+                  <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
+                ) : (
+                  <TrashIcon />
+                )}
+                <span>{t("categories.actions.deleteAll")}</span>
+              </button>
+            </div>
 
             <div className="w-full sm:max-w-xs">
               <div className="relative">
                 <input
                   ref={searchInputRef}
-                  type="search"
+                  type="text"
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   placeholder={t("common.searchPlaceholder")}
