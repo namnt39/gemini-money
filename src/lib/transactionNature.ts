@@ -21,10 +21,10 @@ const aliasMap: Record<string, TransactionNatureCode> = {
 };
 
 const databaseNatureMap: Record<TransactionNatureCode, string[]> = {
-  EX: ["EX", "Expense", "Expenses"],
-  IN: ["IN", "Income", "Incomes"],
-  TF: ["TF", "Transfer", "Transfers"],
-  DE: ["DE", "Debt", "Debts"],
+  EX: ["Expense", "Expenses", "EX"],
+  IN: ["Income", "Incomes", "IN"],
+  TF: ["Transfer", "Transfers", "TF"],
+  DE: ["Debt", "Debts", "DE"],
 };
 
 export function normalizeTransactionNature(
@@ -48,7 +48,24 @@ export function getDatabaseNatureCandidates(
   nature: TransactionNatureCode
 ): string[] {
   const candidates = databaseNatureMap[nature] ?? [nature];
-  return Array.from(new Set(candidates.map((candidate) => candidate.trim()))).filter(Boolean);
+  const seen = new Set<string>();
+  const addCandidate = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      return;
+    }
+    seen.add(trimmed);
+  };
+
+  candidates.forEach((candidate) => {
+    addCandidate(candidate);
+    addCandidate(candidate.toUpperCase());
+    addCandidate(candidate.toLowerCase());
+  });
+
+  addCandidate(nature);
+
+  return Array.from(seen);
 }
 
 export function includesTransferNature(value?: string | null): boolean {

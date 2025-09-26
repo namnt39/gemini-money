@@ -4,6 +4,8 @@ import { Listbox, Transition } from '@headlessui/react';
 import { Fragment, useState, useMemo, useEffect, useRef } from 'react';
 import { createTranslator } from '@/lib/i18n';
 import RemoteImage from '@/components/RemoteImage';
+import Tooltip from '@/components/Tooltip';
+import { ClearIcon } from '@/components/Icons';
 
 export type Option = { id: string; name: string; imageUrl?: string; type?: string; };
 type CustomSelectProps = {
@@ -133,17 +135,21 @@ export default function CustomSelect({ label, value, onChange, options, required
                     onChange={(e) => setQuery(e.target.value)}
                   />
                   {query ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQuery("");
-                        searchInputRef.current?.focus();
-                      }}
-                      className="absolute inset-y-1 right-2 inline-flex items-center rounded-md border border-transparent px-2 text-xs font-semibold uppercase tracking-wide text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
-                      aria-label={t("common.clear")}
-                    >
-                      {t("common.clear")}
-                    </button>
+                    <div className="absolute inset-y-1 right-2 flex items-center">
+                      <Tooltip label={t("common.clear")}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQuery("");
+                            searchInputRef.current?.focus();
+                          }}
+                          className="inline-flex items-center justify-center rounded-md border border-transparent p-2 text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
+                          aria-label={t("common.clear")}
+                        >
+                          <ClearIcon />
+                        </button>
+                      </Tooltip>
+                    </div>
                   ) : null}
                 </div>
 
