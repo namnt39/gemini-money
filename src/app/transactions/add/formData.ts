@@ -1,6 +1,9 @@
 import { supabase, isSupabaseConfigured, supabaseConfigurationError } from "@/lib/supabaseClient";
 import { getMockTransactionFormData } from "@/data/mockData";
-import { normalizeTransactionNature } from "@/lib/transactionNature";
+import {
+  normalizeTransactionNature,
+  type TransactionNatureCode,
+} from "@/lib/transactionNature";
 
 export type Account = {
   id: string;
@@ -14,7 +17,7 @@ export type Account = {
 
 type CategoryInfo = {
   name: string;
-  transaction_nature: string | null;
+  transaction_nature: TransactionNatureCode | null;
 };
 
 type CategoryRelation = {
@@ -72,7 +75,7 @@ export type Subcategory = {
   id: string;
   name: string;
   image_url: string | null;
-  transaction_nature?: string | null;
+  transaction_nature?: TransactionNatureCode | null;
   categories: CategoryInfo[] | CategoryInfo | null;
   is_shop?: boolean | null;
 };
