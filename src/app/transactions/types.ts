@@ -37,8 +37,7 @@ export type TransactionListItem = {
   personId?: string | null;
   person?: { id: string | null; name: string | null; image_url: string | null } | null;
   categoryName?: string | null;
-  subcategoryName?: string | null;
-  subcategoryId?: string | null;
+  categoryId?: string | null;
   shopId?: string | null;
   transactionNature?: string | null;
   debtTag?: string | null;

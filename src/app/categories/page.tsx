@@ -3,19 +3,15 @@ import { createTranslator } from "@/lib/i18n";
 import { normalizeTransactionNature } from "@/lib/transactionNature";
 import CategoriesView from "./CategoriesView";
 
-type RawCategoryRelation = { id?: string | null; name?: string | null; transaction_nature?: string | null } | null;
-
-export type CategoryRecord = {
+export type CategoryListItem = {
   id: string;
   name: string;
   image_url: string | null;
   transaction_nature?: string | null;
-  categories?: RawCategoryRelation;
-  categoryId: string;
-  subcategoryId: string | null;
+  is_shop?: boolean | null;
 };
 
-type CategoriesResult = { categories: CategoryRecord[]; errorMessage?: string };
+type CategoriesResult = { categories: CategoryListItem[]; errorMessage?: string };
 
 async function getCategories(): Promise<CategoriesResult> {
   const supabaseClient = supabase;
@@ -27,86 +23,35 @@ async function getCategories(): Promise<CategoriesResult> {
     return { categories: [], errorMessage: message };
   }
 
-  const [{ data, error }, { data: categories, error: categoriesError }] = await Promise.all([
-    supabaseClient
-      .from("subcategories")
-      .select("id, name, image_url, transaction_nature, category_id, categories(id, name, transaction_nature)")
-      .order("name", { ascending: true }),
-    supabaseClient
-      .from("categories")
-      .select("id, name, image_url, transaction_nature")
-      .order("name", { ascending: true }),
-  ]);
+  const { data, error } = await supabaseClient
+    .from("categories")
+    .select("id, name, image_url, transaction_nature, is_shop")
+    .order("name", { ascending: true });
 
   let errorMessage: string | undefined;
 
   if (error) {
-    errorMessage = error.message || "Unable to fetch subcategories.";
-    console.error("Unable to fetch subcategories:", error);
+    errorMessage = error.message || "Unable to fetch categories.";
+    console.error("Unable to fetch categories:", error);
   }
-
-  if (categoriesError) {
-    const message = categoriesError.message || "Unable to fetch categories.";
-    errorMessage = errorMessage ? `${errorMessage} ${message}` : message;
-    console.error("Unable to fetch categories:", categoriesError);
-  }
-
-  type RawSubcategory = {
-    id: string;
-    name: string;
-    image_url: string | null;
-    transaction_nature?: string | null;
-    category_id?: string | null;
-    categories?: RawCategoryRelation | RawCategoryRelation[];
-  };
-
-  const typedSubcategories = (data as RawSubcategory[]) || [];
-  const normalizedSubcategories: CategoryRecord[] = typedSubcategories.map((item) => {
-    const rawCategories = item.categories;
-    const parentCategory = Array.isArray(rawCategories) ? rawCategories[0] : rawCategories ?? null;
-    const parentId = parentCategory?.id ?? item.category_id ?? item.id;
-    return {
-      id: item.id,
-      name: item.name,
-      image_url: item.image_url ?? null,
-      transaction_nature: normalizeTransactionNature(item.transaction_nature ?? null) ?? undefined,
-      categories: parentCategory,
-      categoryId: parentId ?? item.id,
-      subcategoryId: item.id,
-    };
-  });
 
   type RawCategory = {
     id: string;
     name: string;
     image_url: string | null;
     transaction_nature?: string | null;
+    is_shop?: boolean | null;
   };
 
-  const typedCategories = (categories as RawCategory[] | null) || [];
-
-  const fallbackEntries: CategoryRecord[] = typedCategories.map((item) => ({
+  const typedCategories = ((data as RawCategory[]) ?? []).map((item) => ({
     id: item.id,
     name: item.name,
     image_url: item.image_url ?? null,
     transaction_nature: normalizeTransactionNature(item.transaction_nature ?? null) ?? undefined,
-    categories: {
-      id: item.id,
-      transaction_nature: normalizeTransactionNature(item.transaction_nature ?? null) ?? undefined,
-    },
-    categoryId: item.id,
-    subcategoryId: null,
+    is_shop: typeof item.is_shop === "boolean" ? item.is_shop : item.is_shop ?? null,
   }));
 
-  const combined = [...normalizedSubcategories];
-  const existingCategoryIds = new Set(combined.map((item) => item.categoryId));
-  for (const fallback of fallbackEntries) {
-    if (!existingCategoryIds.has(fallback.categoryId)) {
-      combined.push(fallback);
-    }
-  }
-
-  return { categories: combined, errorMessage };
+  return { categories: typedCategories, errorMessage };
 }
 
 export default async function CategoriesPage() {

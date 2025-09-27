@@ -1,7 +1,7 @@
 import TransactionForm from "./TransactionForm";
 import { loadTransactionFormData } from "./formData";
 
-export { type Account, type Subcategory, type Person } from "./formData";
+export { type Account, type Category, type Person } from "./formData";
 
 const DEFAULT_RETURN_PATH = "/transactions";
 
@@ -34,8 +34,8 @@ type AddTransactionPageProps = {
 
 export default async function AddTransactionPage({ searchParams }: AddTransactionPageProps) {
   const params = await resolveSearchParams(searchParams);
-  const { accounts, subcategories, people, shops, usingMockSubcategories } = await loadTransactionFormData();
-  const createdSubcategoryId = typeof params.createdSubcategoryId === "string" ? params.createdSubcategoryId : undefined;
+  const { accounts, categories, people, shops, usingMockCategories } = await loadTransactionFormData();
+  const createdCategoryId = typeof params.createdCategoryId === "string" ? params.createdCategoryId : undefined;
   const tabParam = typeof params.tab === "string" ? params.tab.toLowerCase() : undefined;
   const initialTab =
     tabParam === "expense" || tabParam === "income" || tabParam === "transfer" || tabParam === "debt"
@@ -49,12 +49,12 @@ export default async function AddTransactionPage({ searchParams }: AddTransactio
       <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
         <TransactionForm
           accounts={accounts}
-          subcategories={subcategories}
+          categories={categories}
           people={people}
           shops={shops}
-          usingMockSubcategories={usingMockSubcategories}
+          usingMockCategories={usingMockCategories}
           returnTo={returnTo}
-          createdSubcategoryId={createdSubcategoryId}
+          createdCategoryId={createdCategoryId}
           initialTab={initialTab}
           layout="modal"
         />

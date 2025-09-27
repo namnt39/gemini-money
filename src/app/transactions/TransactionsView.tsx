@@ -16,7 +16,7 @@ import { ClearIcon } from "@/components/Icons";
 import { deleteTransaction, deleteTransactions } from "./actions";
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "./constants";
 import TransactionForm from "./add/TransactionForm";
-import type { Account, Subcategory, Person, Shop } from "./add/formData";
+import type { Account, Category, Person, Shop } from "./add/formData";
 
 import type { AccountRecord, TransactionFilters, TransactionListItem } from "./types";
 
@@ -27,10 +27,10 @@ type TransactionsViewProps = {
   filters: TransactionFilters;
   errorMessage?: string;
   formAccounts: Account[];
-  formSubcategories: Subcategory[];
+  formCategories: Category[];
   formPeople: Person[];
   formShops: Shop[];
-  formUsingMockSubcategories: boolean;
+  formUsingMockCategories: boolean;
 };
 
 type NatureTab = {
@@ -528,10 +528,10 @@ export default function TransactionsView({
   filters,
   errorMessage,
   formAccounts,
-  formSubcategories,
+  formCategories,
   formPeople,
   formShops,
-  formUsingMockSubcategories,
+  formUsingMockCategories,
 }: TransactionsViewProps) {
   const t = createTranslator();
   const router = useRouter();
@@ -836,12 +836,9 @@ export default function TransactionsView({
         label: t("transactions.tableHeaders.category"),
         minWidth: 200,
         render: (transaction) => {
-          const categoryLabel = transaction.categoryName
-            ? transaction.subcategoryName
-              ? `${transaction.categoryName} / ${transaction.subcategoryName}`
-              : transaction.categoryName
-            : transaction.subcategoryName ?? "-";
-          const value = categoryLabel && categoryLabel.trim() !== "" ? categoryLabel : "-";
+          const value = transaction.categoryName && transaction.categoryName.trim() !== ""
+            ? transaction.categoryName
+            : "-";
           const tone = value === "-" ? "text-gray-400" : "text-gray-700";
           return <span className={tone}>{value}</span>;
         },
@@ -2069,10 +2066,10 @@ export default function TransactionsView({
         <div className="relative z-10 flex w-full max-h-[90vh] max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
           <TransactionForm
             accounts={formAccounts}
-            subcategories={formSubcategories}
+            categories={formCategories}
             people={formPeople}
             shops={formShops}
-            usingMockSubcategories={formUsingMockSubcategories}
+            usingMockCategories={formUsingMockCategories}
             returnTo={currentReturnPath}
             initialTab={modalInitialTab}
             mode={editingTransaction ? "edit" : "create"}

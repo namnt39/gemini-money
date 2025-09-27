@@ -27,20 +27,19 @@ type TransactionQueryRow = {
   from_account_id: string | null;
   to_account_id: string | null;
   person_id: string | null;
-  subcategory_id: string | null;
+  category_id: string | null;
   shop_id: string | null;
   debt_tag: string | null;
   debt_cycle_tag: string | null;
   from_account?: { id: string | null; name: string | null; image_url: string | null } | null;
   to_account?: { id: string | null; name: string | null; image_url: string | null } | null;
   person?: { id: string | null; name: string | null; image_url: string | null } | null;
-  subcategories?: {
+  categories?: {
     id: string;
     name: string | null;
-    categories?:
-      | { name: string | null; transaction_nature?: string | null }[]
-      | { name: string | null; transaction_nature?: string | null }
-      | null;
+    image_url: string | null;
+    transaction_nature?: string | null;
+    is_shop?: boolean | null;
   } | null;
 };
 
@@ -166,20 +165,19 @@ async function fetchTransactions(
         from_account_id,
         to_account_id,
         person_id,
-        subcategory_id,
+        category_id,
         shop_id,
         debt_tag,
         debt_cycle_tag,
         from_account:accounts!from_account_id ( id, name, image_url ),
         to_account:accounts!to_account_id ( id, name, image_url ),
         person:people!person_id ( id, name, image_url ),
-        subcategories (
+        categories:categories!category_id (
           id,
           name,
-          categories (
-            name,
-            transaction_nature
-          )
+          image_url,
+          transaction_nature,
+          is_shop
         )
       `,
       { count: "exact" }
@@ -196,7 +194,7 @@ async function fetchTransactions(
     const natureCode = natureCodeMap[filters.nature];
     const candidates = getDatabaseNatureCandidates(natureCode);
     if (candidates.length > 0) {
-      query = query.in("subcategories.categories.transaction_nature", candidates);
+      query = query.in("categories.transaction_nature", candidates);
     }
     if (filters.nature === "transfer") {
       query = query.not("from_account_id", "is", null).not("to_account_id", "is", null);
@@ -214,8 +212,7 @@ async function fetchTransactions(
     query = query.or(
       [
         `notes.ilike.${likePattern}`,
-        `subcategories.name.ilike.${likePattern}`,
-        `subcategories.categories.name.ilike.${likePattern}`,
+        `categories.name.ilike.${likePattern}`,
         `from_account.name.ilike.${likePattern}`,
         `to_account.name.ilike.${likePattern}`,
         `person.name.ilike.${likePattern}`,
@@ -237,10 +234,8 @@ async function fetchTransactions(
 
   const rows: TransactionQueryRow[] = data ?? [];
   const mapped: TransactionListItem[] = rows.map((row) => {
-    const subcategory = row.subcategories;
-    const rawCategories = subcategory?.categories;
-    const parentCategory = Array.isArray(rawCategories) ? rawCategories[0] : rawCategories ?? null;
-    const transactionNature = normalizeTransactionNature(parentCategory?.transaction_nature ?? null) ?? null;
+    const category = row.categories;
+    const transactionNature = normalizeTransactionNature(category?.transaction_nature ?? null) ?? null;
 
     return {
       id: row.id,
@@ -262,9 +257,8 @@ async function fetchTransactions(
       toAccount: row.to_account ?? null,
       personId: row.person_id,
       person: row.person ?? null,
-      categoryName: parentCategory?.name ?? null,
-      subcategoryName: subcategory?.name ?? null,
-      subcategoryId: row.subcategory_id ?? subcategory?.id ?? null,
+      categoryName: category?.name ?? null,
+      categoryId: row.category_id ?? category?.id ?? null,
       shopId: row.shop_id ?? null,
       transactionNature,
       debtTag: row.debt_tag ?? null,
@@ -341,10 +335,10 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
         filters={filters}
         errorMessage={combinedError}
         formAccounts={formData.accounts}
-        formSubcategories={formData.subcategories}
+        formCategories={formData.categories}
         formPeople={formData.people}
         formShops={formData.shops}
-        formUsingMockSubcategories={formData.usingMockSubcategories}
+        formUsingMockCategories={formData.usingMockCategories}
       />
     </div>
   );
