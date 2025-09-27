@@ -745,13 +745,17 @@ export default function TransactionsView({
     return formatDateTag(date);
   }, []);
 
-  const tagOptions = useMemo(
-    () => [
+  const tagOptions = useMemo(() => {
+    const base: { value: string; label: string; disabled?: boolean }[] = [
       { value: "all", label: t("transactions.filters.allTags") },
-      ...sortedTagValues.map((tag) => ({ value: tag, label: tag })),
-    ],
-    [sortedTagValues, t]
-  );
+    ];
+
+    sortedTagValues.forEach((tag) => {
+      base.push({ value: tag, label: tag });
+    });
+
+    return base;
+  }, [sortedTagValues, t]);
 
   const debtCycleOptions = useMemo(() => {
     const hasCurrent = currentDebtTag ? debtTagValues.includes(currentDebtTag) : false;

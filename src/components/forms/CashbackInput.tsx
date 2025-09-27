@@ -6,10 +6,13 @@ import { createTranslator } from "@/lib/i18n";
 
 type LastEdited = "percent" | "amount" | null;
 
+type CashbackValue = { percent: number; amount: number; source: LastEdited };
+
 type CashbackInputProps = {
   transactionAmount: string;
   account: Account;
-  onCashbackChange: (value: { percent: number; amount: number; source: LastEdited }) => void;
+  value?: CashbackValue;
+  onChange?: (value: CashbackValue) => void;
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -39,13 +42,20 @@ const formatPercent = (value: number) => {
   return fixed.replace(/\.0+$/, "").replace(/0+$/, "");
 };
 
-export default function CashbackInput({ transactionAmount, account, onCashbackChange }: CashbackInputProps) {
+export default function CashbackInput({ transactionAmount, account, value, onChange }: CashbackInputProps) {
   const t = createTranslator();
   const [percentInput, setPercentInput] = useState<string>("");
   const [amountInput, setAmountInput] = useState<string>("");
   const [lastEdited, setLastEdited] = useState<LastEdited>(null);
   const [percentExceeded, setPercentExceeded] = useState(false);
   const [amountExceeded, setAmountExceeded] = useState(false);
+
+  const notifyChange = useCallback(
+    (next: CashbackValue) => {
+      onChange?.(next);
+    },
+    [onChange]
+  );
 
   const transactionValue = useMemo(() => parseCurrency(transactionAmount), [transactionAmount]);
 
@@ -109,8 +119,40 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
     setLastEdited(null);
     setPercentExceeded(false);
     setAmountExceeded(false);
-    onCashbackChange({ percent: 0, amount: 0, source: null });
-  }, [onCashbackChange]);
+    notifyChange({ percent: 0, amount: 0, source: null });
+  }, [notifyChange]);
+
+  useEffect(() => {
+    if (!value) {
+      return;
+    }
+
+    if (value.source === "percent") {
+      const normalized = normalizeByPercent(value.percent || 0);
+      const formattedPercent = normalized.percent > 0 ? formatPercent(normalized.percent) : "";
+      const formattedAmount = normalized.amount > 0 ? formatCurrency(normalized.amount) : "";
+      setPercentInput((prev) => (prev === formattedPercent ? prev : formattedPercent));
+      setAmountInput((prev) => (prev === formattedAmount ? prev : formattedAmount));
+      setLastEdited("percent");
+      setPercentExceeded(false);
+      setAmountExceeded(false);
+      return;
+    }
+
+    if (value.source === "amount") {
+      const normalized = normalizeByAmount(value.amount || 0);
+      const formattedAmount = normalized.amount > 0 ? formatCurrency(normalized.amount) : "";
+      const formattedPercent = normalized.percent > 0 ? formatPercent(normalized.percent) : "";
+      setAmountInput((prev) => (prev === formattedAmount ? prev : formattedAmount));
+      setPercentInput((prev) => (prev === formattedPercent ? prev : formattedPercent));
+      setLastEdited("amount");
+      setPercentExceeded(false);
+      setAmountExceeded(false);
+      return;
+    }
+
+    resetValues();
+  }, [value, normalizeByPercent, normalizeByAmount, resetValues]);
 
   useEffect(() => {
     if (!account.is_cashback_eligible || transactionValue <= 0) {
@@ -127,7 +169,7 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
 
         if (!amountInput) {
           setLastEdited(null);
-          onCashbackChange({ percent: 0, amount: 0, source: null });
+          notifyChange({ percent: 0, amount: 0, source: null });
         } else {
           setLastEdited("amount");
         }
@@ -142,7 +184,7 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
       const exceeded = limit > 0 ? numericPercent > limit + 1e-6 : numericPercent > 0;
       setPercentExceeded(exceeded);
 
-      onCashbackChange({ percent: normalized.percent, amount: normalized.amount, source: "percent" });
+      notifyChange({ percent: normalized.percent, amount: normalized.amount, source: "percent" });
       return;
     }
 
@@ -155,7 +197,7 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
 
         if (!percentInput) {
           setLastEdited(null);
-          onCashbackChange({ percent: 0, amount: 0, source: null });
+          notifyChange({ percent: 0, amount: 0, source: null });
         } else {
           setLastEdited("percent");
         }
@@ -169,11 +211,11 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
       const exceeded = numericAmount > amountLimit;
       setAmountExceeded(exceeded);
 
-      onCashbackChange({ percent: normalized.percent, amount: normalized.amount, source: "amount" });
+      notifyChange({ percent: normalized.percent, amount: normalized.amount, source: "amount" });
       return;
     }
 
-    onCashbackChange({ percent: 0, amount: 0, source: null });
+    notifyChange({ percent: 0, amount: 0, source: null });
   }, [
     account.is_cashback_eligible,
     transactionValue,
@@ -184,7 +226,7 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
     effectivePercentLimit,
     normalizeByAmount,
     normalizeByPercent,
-    onCashbackChange,
+    notifyChange,
     resetValues,
   ]);
 
@@ -198,7 +240,7 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
           setLastEdited("amount");
         } else {
           setLastEdited(null);
-          onCashbackChange({ percent: 0, amount: 0, source: null });
+          notifyChange({ percent: 0, amount: 0, source: null });
         }
       }
       return;
@@ -218,7 +260,7 @@ export default function CashbackInput({ transactionAmount, account, onCashbackCh
           setLastEdited("percent");
         } else {
           setLastEdited(null);
-          onCashbackChange({ percent: 0, amount: 0, source: null });
+          notifyChange({ percent: 0, amount: 0, source: null });
         }
       }
       return;
