@@ -34,7 +34,7 @@ type TransactionQueryRow = {
   from_account?: { id: string | null; name: string | null; image_url: string | null } | null;
   to_account?: { id: string | null; name: string | null; image_url: string | null } | null;
   person?: { id: string | null; name: string | null; image_url: string | null } | null;
-  categories?: {
+  category?: {
     id: string;
     name: string | null;
     image_url: string | null;
@@ -172,7 +172,7 @@ async function fetchTransactions(
         from_account:accounts!from_account_id ( id, name, image_url ),
         to_account:accounts!to_account_id ( id, name, image_url ),
         person:people!person_id ( id, name, image_url ),
-        categories:categories!category_id (
+        category:categories!category_id (
           id,
           name,
           image_url,
@@ -234,7 +234,7 @@ async function fetchTransactions(
 
   const rows: TransactionQueryRow[] = data ?? [];
   const mapped: TransactionListItem[] = rows.map((row) => {
-    const category = row.categories;
+    const category = row.category;
     const transactionNature = normalizeTransactionNature(category?.transaction_nature ?? null) ?? null;
 
     return {
