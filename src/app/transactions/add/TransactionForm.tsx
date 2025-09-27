@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Account, Subcategory, Person, Shop } from "./formData";
 import { createTransaction, updateTransaction } from "../actions";
@@ -12,6 +12,7 @@ import { normalizeTransactionNature, type TransactionNatureCode } from "@/lib/tr
 import { useAppShell } from "@/components/AppShellProvider";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { formatDateTag } from "@/lib/dateTag";
+import AddShopModal from "@/components/shops/AddShopModal";
 import type { TransactionListItem } from "../types";
 
 type Tab = "expense" | "income" | "transfer" | "debt";
@@ -124,6 +125,9 @@ type PersistedState = {
   cashbackSource: CashbackSource;
   debtMode: DebtMode;
   shopId: string;
+  debtTag: string;
+  debtCycleTag: string;
+  useLastMonthTag: boolean;
 };
 
 const STORAGE_KEY = "transactions:add-form-state";
@@ -201,6 +205,7 @@ export default function TransactionForm({
       if (raw && shouldPreserve) {
         const parsed = JSON.parse(raw) as Partial<PersistedState>;
         const today = new Date().toISOString().split("T")[0];
+        const fallbackTag = formatDateTag(new Date()) ?? "";
         persistedStateRef.current = {
           activeTab: parsed.activeTab ?? "expense",
           amount: parsed.amount ?? "",
@@ -218,6 +223,9 @@ export default function TransactionForm({
               : null,
           debtMode: parsed.debtMode === "collect" ? "collect" : "lend",
           shopId: parsed.shopId ?? "",
+          debtTag: typeof parsed.debtTag === "string" ? parsed.debtTag : fallbackTag,
+          debtCycleTag: typeof parsed.debtCycleTag === "string" ? parsed.debtCycleTag : fallbackTag,
+          useLastMonthTag: Boolean(parsed.useLastMonthTag),
         };
       }
     } catch {
@@ -250,6 +258,10 @@ export default function TransactionForm({
     ? inferDebtModeFromTransaction(editingTransaction)
     : persistedState?.debtMode ?? "lend";
   const defaultShopId = editingTransaction?.shopId ?? persistedState?.shopId ?? "";
+  const fallbackDebtTag = formatDateTag(editingTransaction?.date ?? new Date()) ?? "";
+  const defaultDebtTag = editingTransaction?.debtTag ?? persistedState?.debtTag ?? fallbackDebtTag;
+  const defaultDebtCycleTag = editingTransaction?.debtCycleTag ?? persistedState?.debtCycleTag ?? fallbackDebtTag;
+  const defaultUseLastMonthTag = persistedState?.useLastMonthTag ?? false;
 
   const [activeTab, setActiveTab] = useState<Tab>(defaultTabValue);
   const [amount, setAmount] = useState(defaultAmount);
@@ -263,6 +275,11 @@ export default function TransactionForm({
   const [debtMode, setDebtMode] = useState<DebtMode>(defaultDebtMode);
   const [shopId, setShopId] = useState(defaultShopId);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const [debtTagValue, setDebtTagValue] = useState(defaultDebtTag);
+  const [debtCycleTagValue, setDebtCycleTagValue] = useState(defaultDebtCycleTag);
+  const [useLastMonthTag, setUseLastMonthTag] = useState(defaultUseLastMonthTag);
+  const [shopRecords, setShopRecords] = useState<Shop[]>(() => shops);
+  const [isShopModalOpen, setShopModalOpen] = useState(false);
 
   const [showCashback, setShowCashback] = useState(() => (isEditMode ? editingShowCashback : false));
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(() => {
@@ -276,6 +293,75 @@ export default function TransactionForm({
     amount: defaultCashbackAmount,
     source: defaultCashbackSource,
   });
+
+  const debtTagInputId = useId();
+  const debtCycleInputId = useId();
+  const debtTagListId = useId();
+
+  const recentDebtTags = useMemo(() => {
+    const tags = new Set<string>();
+    const addTag = (value?: string | null) => {
+      if (!value) {
+        return;
+      }
+      const trimmed = value.trim();
+      if (trimmed) {
+        tags.add(trimmed);
+      }
+    };
+    for (let offset = 0; offset < 6; offset += 1) {
+      const reference = new Date();
+      reference.setMonth(reference.getMonth() - offset, 1);
+      addTag(formatDateTag(reference));
+    }
+    addTag(debtTagValue);
+    addTag(debtCycleTagValue);
+    return Array.from(tags);
+  }, [debtCycleTagValue, debtTagValue]);
+
+  const handleToggleLastMonth = useCallback(
+    (checked: boolean) => {
+      setUseLastMonthTag(checked);
+      if (checked) {
+        const previous = new Date();
+        previous.setMonth(previous.getMonth() - 1, 1);
+        const tag = formatDateTag(previous) ?? "";
+        setDebtTagValue(tag);
+      } else if (!debtTagValue.trim()) {
+        const current = formatDateTag(new Date()) ?? "";
+        setDebtTagValue(current);
+      }
+    },
+    [debtTagValue]
+  );
+
+  useEffect(() => {
+    setShopRecords((previous) => {
+      const merged = new Map(previous.map((shop) => [shop.id, shop] as const));
+      shops.forEach((shop) => {
+        const existing = merged.get(shop.id);
+        merged.set(shop.id, existing ? { ...existing, ...shop } : shop);
+      });
+      return Array.from(merged.values());
+    });
+  }, [shops]);
+
+  useEffect(() => {
+    if (debtMode === "collect" && useLastMonthTag) {
+      setUseLastMonthTag(false);
+    }
+  }, [debtMode, useLastMonthTag]);
+
+  useEffect(() => {
+    if (debtMode === "collect" && !debtCycleTagValue.trim()) {
+      const currentTag = formatDateTag(new Date()) ?? "";
+      setDebtCycleTagValue(currentTag);
+    }
+    if (debtMode === "lend" && !debtTagValue.trim()) {
+      const currentTag = formatDateTag(new Date()) ?? "";
+      setDebtTagValue(currentTag);
+    }
+  }, [debtMode, debtCycleTagValue, debtTagValue]);
 
   const initialSnapshotRef = useRef<PersistedState>({
     activeTab: defaultTabValue,
@@ -291,6 +377,9 @@ export default function TransactionForm({
     cashbackSource: defaultCashbackSource,
     debtMode: defaultDebtMode,
     shopId: defaultShopId,
+    debtTag: defaultDebtTag,
+    debtCycleTag: defaultDebtCycleTag,
+    useLastMonthTag: defaultUseLastMonthTag,
   });
 
   // Determine whether to show cashback input based on the selected expense account
@@ -363,6 +452,13 @@ export default function TransactionForm({
     []
   );
 
+  const generateShopId = useCallback(() => {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    return `shop-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }, []);
+
   const expenseCategories = useMemo(
     () => subcategories.filter((s) => getTransactionNature(s) === "EX").map(mapToOptions),
     [subcategories, getTransactionNature, mapToOptions]
@@ -381,7 +477,7 @@ export default function TransactionForm({
     [accounts, mapToOptions]
   );
   const peopleWithOptions = useMemo(() => people.map(mapToOptions), [people, mapToOptions]);
-  const shopOptions = useMemo(() => shops.map(mapToOptions), [mapToOptions, shops]);
+  const shopOptions = useMemo(() => shopRecords.map(mapToOptions), [mapToOptions, shopRecords]);
 
   const selectedSubcategory = useMemo(() => {
     if (!subcategoryId) {
@@ -443,11 +539,28 @@ export default function TransactionForm({
   }, [t]);
 
   const handleAddShop = useCallback(() => {
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem(PRESERVE_KEY, "1");
-    }
-    router.push("/shops");
-  }, [router]);
+    setShopModalOpen(true);
+  }, []);
+
+  const handleCreateShopRecord = useCallback(
+    (values: { name: string; type?: string; notes?: string | null }) => {
+      const id = generateShopId();
+      const record: Shop = {
+        id,
+        name: values.name,
+        image_url: null,
+        type: values.type ? values.type.toLowerCase() : null,
+        created_at: new Date().toISOString(),
+      };
+      setShopRecords((prev) => [record, ...prev]);
+      setShopId(id);
+      setShopModalOpen(false);
+      showSuccess(t("transactionForm.shop.createSuccess"));
+    },
+    [generateShopId, showSuccess, t]
+  );
+
+  const handleCloseShopModal = useCallback(() => setShopModalOpen(false), []);
 
   const returnPath = useMemo(() => {
     const params = new URLSearchParams();
@@ -499,9 +612,27 @@ export default function TransactionForm({
       snapshot.cashbackAmount !== cashbackInfo.amount ||
       snapshot.cashbackSource !== cashbackInfo.source ||
       snapshot.debtMode !== debtMode ||
-      snapshot.shopId !== shopId
+      snapshot.shopId !== shopId ||
+      snapshot.debtTag !== debtTagValue ||
+      snapshot.debtCycleTag !== debtCycleTagValue ||
+      snapshot.useLastMonthTag !== useLastMonthTag
     );
-  }, [activeTab, amount, fromAccountId, toAccountId, subcategoryId, personId, notes, date, cashbackInfo, debtMode, shopId]);
+  }, [
+    activeTab,
+    amount,
+    fromAccountId,
+    toAccountId,
+    subcategoryId,
+    personId,
+    notes,
+    date,
+    cashbackInfo,
+    debtMode,
+    shopId,
+    debtTagValue,
+    debtCycleTagValue,
+    useLastMonthTag,
+  ]);
 
   const handleBack = useCallback(() => {
     if (isDirty) {
@@ -538,10 +669,29 @@ export default function TransactionForm({
       cashbackSource: cashbackInfo.source,
       debtMode,
       shopId,
+      debtTag: debtTagValue,
+      debtCycleTag: debtCycleTagValue,
+      useLastMonthTag,
     };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     persistedStateRef.current = payload;
-  }, [activeTab, amount, cashbackInfo, debtMode, fromAccountId, isEditMode, notes, personId, shopId, subcategoryId, toAccountId, date]);
+  }, [
+    activeTab,
+    amount,
+    cashbackInfo,
+    debtMode,
+    fromAccountId,
+    isEditMode,
+    notes,
+    personId,
+    shopId,
+    subcategoryId,
+    toAccountId,
+    date,
+    debtTagValue,
+    debtCycleTagValue,
+    useLastMonthTag,
+  ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -575,6 +725,14 @@ export default function TransactionForm({
       cashback: sanitizedCashback,
       debtMode,
       shopId: shopId?.trim() ? shopId.trim() : undefined,
+      debtTag:
+        activeTab === "debt" && debtMode !== "collect"
+          ? debtTagValue.trim() || undefined
+          : undefined,
+      debtCycleTag:
+        activeTab === "debt" && debtMode === "collect"
+          ? debtCycleTagValue.trim() || undefined
+          : undefined,
     };
 
     const result = isEditMode && editingTransaction
@@ -624,7 +782,8 @@ export default function TransactionForm({
   const dateTag = useMemo(() => formatDateTag(date), [date]);
 
   return (
-    <form onSubmit={handleSubmit} className={formClasses}>
+    <>
+      <form onSubmit={handleSubmit} className={formClasses}>
       {layout === "modal" ? (
         <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
           <button
@@ -659,7 +818,7 @@ export default function TransactionForm({
               onChange={(e) => setDate(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-4 py-3 text-base shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
             />
-            {dateTag ? (
+            {activeTab !== "debt" && dateTag ? (
               <div className="mt-2">
                 <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-indigo-700">
                   {dateTag}
@@ -769,11 +928,14 @@ export default function TransactionForm({
               required
             />
 
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 shadow-sm">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                <span className="text-sm font-semibold uppercase tracking-wide text-amber-800">
-                  {t("transactionForm.debtModes.label")}
-                </span>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 shadow-sm">
+              <div className="flex flex-col gap-3 border-b border-amber-100 bg-amber-100/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-wide text-amber-900">
+                    {t("transactionForm.debt.directionTitle")}
+                  </p>
+                  <p className="text-xs text-amber-800">{t("transactionForm.debt.directionHelper")}</p>
+                </div>
                 <div className="flex flex-wrap gap-2 sm:gap-3">
                   {(["lend", "collect"] as DebtMode[]).map((mode) => (
                     <button
@@ -791,6 +953,67 @@ export default function TransactionForm({
                     </button>
                   ))}
                 </div>
+              </div>
+              <div className="grid gap-4 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                <div className="space-y-2">
+                  <label
+                    className={`text-sm font-medium ${
+                      debtMode === "collect" ? "text-emerald-800" : "text-amber-800"
+                    }`}
+                    htmlFor={debtMode === "collect" ? debtCycleInputId : debtTagInputId}
+                  >
+                    {debtMode === "collect"
+                      ? t("transactionForm.debt.cycleLabel")
+                      : t("transactionForm.debt.tagLabel")}
+                  </label>
+                  <input
+                    id={debtMode === "collect" ? debtCycleInputId : debtTagInputId}
+                    list={debtTagListId}
+                    value={debtMode === "collect" ? debtCycleTagValue : debtTagValue}
+                    onChange={(event) =>
+                      debtMode === "collect"
+                        ? setDebtCycleTagValue(event.target.value)
+                        : setDebtTagValue(event.target.value)
+                    }
+                    className={`w-full rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 ${
+                      debtMode === "collect"
+                        ? "border border-emerald-200 focus:border-emerald-500 focus:ring-emerald-200"
+                        : "border border-amber-200 focus:border-amber-500 focus:ring-amber-200"
+                    }`}
+                    placeholder={t(
+                      debtMode === "collect"
+                        ? "transactionForm.debt.cyclePlaceholder"
+                        : "transactionForm.debt.tagPlaceholder"
+                    )}
+                  />
+                  <datalist id={debtTagListId}>
+                    {recentDebtTags.map((tag) => (
+                      <option key={tag} value={tag} />
+                    ))}
+                  </datalist>
+                  <p
+                    className={`text-xs ${
+                      debtMode === "collect" ? "text-emerald-700" : "text-amber-700"
+                    }`}
+                  >
+                    {t(
+                      debtMode === "collect"
+                        ? "transactionForm.debt.cycleHelper"
+                        : "transactionForm.debt.tagHelper"
+                    )}
+                  </p>
+                </div>
+                {debtMode === "lend" ? (
+                  <label className="inline-flex items-center gap-2 rounded-md border border-amber-200 bg-white px-3 py-2 text-sm font-medium text-amber-700 shadow-sm">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                      checked={useLastMonthTag}
+                      onChange={(event) => handleToggleLastMonth(event.target.checked)}
+                    />
+                    {t("transactionForm.debt.lastMonthToggle")}
+                  </label>
+                ) : null}
               </div>
             </div>
 
@@ -830,13 +1053,7 @@ export default function TransactionForm({
               <CustomSelect
                 label={t("transactionForm.shop.shopLabel")}
                 value={shopId}
-                onChange={(value) => {
-                  if (value === "__add_new__") {
-                    handleAddShop();
-                    return;
-                  }
-                  setShopId(value);
-                }}
+                onChange={setShopId}
                 options={shopOptions}
                 onAddNew={handleAddShop}
                 addNewLabel={t("transactionForm.shop.addShop")}
@@ -886,7 +1103,9 @@ export default function TransactionForm({
         onCancel={handleCancelLeave}
         onConfirm={handleConfirmLeave}
       />
-    </form>
+      </form>
+      <AddShopModal open={isShopModalOpen} onClose={handleCloseShopModal} onCreate={handleCreateShopRecord} />
+    </>
   );
 }
 

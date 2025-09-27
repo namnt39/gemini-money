@@ -41,4 +41,6 @@ export type TransactionListItem = {
   subcategoryId?: string | null;
   shopId?: string | null;
   transactionNature?: string | null;
+  debtTag?: string | null;
+  debtCycleTag?: string | null;
 };
