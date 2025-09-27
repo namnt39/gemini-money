@@ -116,6 +116,7 @@ type DataColumnId =
   | "notes"
   | "amount"
   | "borrower"
+  | "transactionTag"
   | "back"
   | "totalBack"
   | "finalPrice";
@@ -128,6 +129,7 @@ const DEFAULT_COLUMN_ORDER: DataColumnId[] = [
   "notes",
   "amount",
   "borrower",
+  "transactionTag",
   "back",
   "totalBack",
   "finalPrice",
@@ -139,6 +141,7 @@ const DEFAULT_COLUMN_WIDTHS: Partial<Record<DataColumnId, number>> = {
   notes: 260,
   amount: 180,
   borrower: 200,
+  transactionTag: 160,
   back: 200,
   totalBack: 170,
   finalPrice: 180,
@@ -161,6 +164,8 @@ type DataColumn = {
   render: (transaction: TransactionListItem) => ReactNode;
   summary?: (summary: SelectedSummary) => ReactNode;
 };
+
+type TransactionTagInfo = { value: string; variant: "debt" | "repay" };
 
 type FormTab = "expense" | "income" | "transfer" | "debt";
 
@@ -273,6 +278,22 @@ const RefreshIcon = () => (
       strokeLinecap="round"
       strokeLinejoin="round"
     />
+  </svg>
+);
+
+const ResetFiltersIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 20 20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.6}
+    className="h-4 w-4"
+  >
+    <path d="M5.5 6.5h6a3.5 3.5 0 1 1 0 7H7.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M5.5 6.5 7.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M5.5 6.5 7.5 8.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M7.5 14.5h-2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -419,19 +440,39 @@ type NatureHoverMenuProps = {
 
 function NatureHoverMenu({ items, activeValue, onSelect }: NatureHoverMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const activeItem = items.find((item) => item.value === activeValue) ?? items[0];
 
+  useEffect(() => {
+    if (!isOpen) {
+      return () => undefined;
+    }
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
   return (
-    <div
-      className="relative"
-      onMouseEnter={() => setIsOpen(true)}
-      onMouseLeave={() => setIsOpen(false)}
-    >
+    <div className="relative" ref={menuRef}>
       <button
         type="button"
         className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
-        aria-haspopup="true"
+        aria-haspopup="listbox"
         aria-expanded={isOpen}
+        onClick={() => setIsOpen((previous) => !previous)}
       >
         <span>{activeItem?.label}</span>
         <ChevronDownIcon />
@@ -441,7 +482,7 @@ function NatureHoverMenu({ items, activeValue, onSelect }: NatureHoverMenuProps)
           isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
       >
-        <ul className="py-1 text-sm text-gray-700">
+        <ul className="py-1 text-sm text-gray-700" role="listbox">
           {items.map((item) => {
             const isActive = item.value === activeValue;
             return (
@@ -455,6 +496,8 @@ function NatureHoverMenu({ items, activeValue, onSelect }: NatureHoverMenuProps)
                   className={`block w-full px-4 py-2 text-left transition ${
                     isActive ? "bg-indigo-50 font-semibold text-indigo-700" : "hover:bg-indigo-50"
                   }`}
+                  role="option"
+                  aria-selected={isActive}
                 >
                   {item.label}
                 </button>
@@ -467,11 +510,14 @@ function NatureHoverMenu({ items, activeValue, onSelect }: NatureHoverMenuProps)
   );
 }
 
-const TagBadge = ({ value }: { value: string }) => (
-  <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
-    {value}
-  </span>
-);
+const TransactionTagBadge = ({ info }: { info: TransactionTagInfo }) => {
+  const base = "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide";
+  const tone =
+    info.variant === "repay"
+      ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+      : "border border-rose-200 bg-rose-50 text-rose-700";
+  return <span className={`${base} ${tone}`}>{info.value}</span>;
+};
 
 export default function TransactionsView({
   transactions,
@@ -605,64 +651,92 @@ export default function TransactionsView({
     [isDebtTransaction]
   );
 
-  const tagByTransactionId = useMemo(() => {
+  const debtTagByTransactionId = useMemo(() => {
     const map = new Map<string, string>();
     transactions.forEach((transaction) => {
-      const tag = formatDateTag(transaction.date);
-      if (tag) {
-        map.set(transaction.id, tag);
+      const explicit = transaction.debtTag?.trim();
+      if (explicit) {
+        map.set(transaction.id, explicit);
+        return;
+      }
+      if (isDebtTransaction(transaction)) {
+        const fallback = formatDateTag(transaction.date);
+        if (fallback) {
+          map.set(transaction.id, fallback);
+        }
       }
     });
     return map;
-  }, [transactions]);
+  }, [isDebtTransaction, transactions]);
+
+  const repaymentTagByTransactionId = useMemo(() => {
+    const map = new Map<string, string>();
+    transactions.forEach((transaction) => {
+      const explicit = transaction.debtCycleTag?.trim();
+      if (explicit) {
+        map.set(transaction.id, explicit);
+        return;
+      }
+      if (isRepaymentTransaction(transaction)) {
+        const fallback = formatDateTag(transaction.date);
+        if (fallback) {
+          map.set(transaction.id, fallback);
+        }
+      }
+    });
+    return map;
+  }, [isRepaymentTransaction, transactions]);
+
+  const displayTagByTransactionId = useMemo(() => {
+    const map = new Map<string, TransactionTagInfo>();
+    transactions.forEach((transaction) => {
+      const debtTag = debtTagByTransactionId.get(transaction.id) ?? null;
+      const repaymentTag = repaymentTagByTransactionId.get(transaction.id) ?? null;
+      const isRepayment = isRepaymentTransaction(transaction);
+      if (isRepayment && repaymentTag) {
+        map.set(transaction.id, { value: repaymentTag, variant: "repay" });
+        return;
+      }
+      if (!isRepayment && debtTag) {
+        map.set(transaction.id, { value: debtTag, variant: "debt" });
+        return;
+      }
+      const fallback = formatDateTag(transaction.date);
+      if (fallback) {
+        map.set(transaction.id, { value: fallback, variant: isRepayment ? "repay" : "debt" });
+      }
+    });
+    return map;
+  }, [debtTagByTransactionId, isRepaymentTransaction, repaymentTagByTransactionId, transactions]);
 
   const sortedTagValues = useMemo(() => {
     const weights = new Map<string, number>();
-    transactions.forEach((transaction) => {
-      const tag = tagByTransactionId.get(transaction.id);
-      if (!tag) {
-        return;
+    const register = (value: string) => {
+      const weight = getDateTagSortValue(value);
+      const current = weights.get(value);
+      if (current == null || weight > current) {
+        weights.set(value, weight);
       }
-      const weight = getDateTagSortValue(tag);
-      const existing = weights.get(tag) ?? Number.NEGATIVE_INFINITY;
-      if (weight > existing) {
-        weights.set(tag, weight);
-      }
-    });
+    };
+    debtTagByTransactionId.forEach(register);
+    repaymentTagByTransactionId.forEach(register);
+    displayTagByTransactionId.forEach((info) => register(info.value));
     return Array.from(weights.entries())
       .sort(([, a], [, b]) => b - a)
-      .map(([tag]) => tag);
-  }, [tagByTransactionId, transactions]);
-
-  const debtTransactions = useMemo(
-    () => transactions.filter((transaction) => isDebtTransaction(transaction)),
-    [transactions, isDebtTransaction]
-  );
+      .map(([value]) => value);
+  }, [debtTagByTransactionId, displayTagByTransactionId, repaymentTagByTransactionId]);
 
   const debtTagValues = useMemo(() => {
-    const tags = new Set<string>();
-    debtTransactions.forEach((transaction) => {
-      const tag = tagByTransactionId.get(transaction.id);
-      if (tag) {
-        tags.add(tag);
-      }
-    });
-    return Array.from(tags).sort((a, b) => getDateTagSortValue(b) - getDateTagSortValue(a));
-  }, [debtTransactions, tagByTransactionId]);
+    const unique = new Set<string>();
+    debtTagByTransactionId.forEach((value) => unique.add(value));
+    return Array.from(unique).sort((a, b) => getDateTagSortValue(b) - getDateTagSortValue(a));
+  }, [debtTagByTransactionId]);
 
   const debtRepayTagValues = useMemo(() => {
-    const tags = new Set<string>();
-    debtTransactions.forEach((transaction) => {
-      if (!isRepaymentTransaction(transaction)) {
-        return;
-      }
-      const tag = tagByTransactionId.get(transaction.id);
-      if (tag) {
-        tags.add(tag);
-      }
-    });
-    return Array.from(tags).sort((a, b) => getDateTagSortValue(b) - getDateTagSortValue(a));
-  }, [debtTransactions, isRepaymentTransaction, tagByTransactionId]);
+    const unique = new Set<string>();
+    repaymentTagByTransactionId.forEach((value) => unique.add(value));
+    return Array.from(unique).sort((a, b) => getDateTagSortValue(b) - getDateTagSortValue(a));
+  }, [repaymentTagByTransactionId]);
 
   const currentDebtTag = useMemo(() => formatDateTag(new Date()), []);
   const previousDebtTag = useMemo(() => {
@@ -673,46 +747,50 @@ export default function TransactionsView({
 
   const tagOptions = useMemo(
     () => [
-      { value: "all", label: "All tags" },
+      { value: "all", label: t("transactions.filters.allTags") },
       ...sortedTagValues.map((tag) => ({ value: tag, label: tag })),
     ],
-    [sortedTagValues]
+    [sortedTagValues, t]
   );
 
   const debtCycleOptions = useMemo(() => {
     const hasCurrent = currentDebtTag ? debtTagValues.includes(currentDebtTag) : false;
     const hasLast = previousDebtTag ? debtTagValues.includes(previousDebtTag) : false;
     const base: { value: string; label: string; disabled?: boolean }[] = [
-      { value: "all", label: "All debt cycles" },
+      { value: "all", label: t("transactions.filters.allDebtCycles") },
       {
         value: "current",
-        label: currentDebtTag ? `Current month (${currentDebtTag})` : "Current month",
+        label: currentDebtTag
+          ? t("transactions.filters.currentDebtCycleWithTag", { tag: currentDebtTag })
+          : t("transactions.filters.currentDebtCycle"),
         disabled: !hasCurrent,
       },
       {
         value: "last",
-        label: previousDebtTag ? `Last month (${previousDebtTag})` : "Last month",
+        label: previousDebtTag
+          ? t("transactions.filters.lastDebtCycleWithTag", { tag: previousDebtTag })
+          : t("transactions.filters.lastDebtCycle"),
         disabled: !hasLast,
       },
     ];
 
     debtTagValues.forEach((tag) => {
-      base.push({ value: `tag:${tag}`, label: `Cycle ${tag}` });
+      base.push({ value: `tag:${tag}`, label: t("transactions.filters.cycleOption", { tag }) });
     });
 
     return base;
-  }, [currentDebtTag, debtTagValues, previousDebtTag]);
+  }, [currentDebtTag, debtTagValues, previousDebtTag, t]);
 
   const debtRepayTagOptions = useMemo(() => {
     const base: { value: string; label: string }[] = [
-      { value: "all", label: "All repayments" },
-      { value: "none", label: "No repayments" },
+      { value: "all", label: t("transactions.filters.allRepayments") },
+      { value: "none", label: t("transactions.filters.noRepayments") },
     ];
     debtRepayTagValues.forEach((tag) => {
-      base.push({ value: tag, label: `Repay ${tag}` });
+      base.push({ value: tag, label: t("transactions.filters.repayOption", { tag }) });
     });
     return base;
-  }, [debtRepayTagValues]);
+  }, [debtRepayTagValues, t]);
 
   const natureMenuItems = useMemo(
     () => natureTabs.map((tab) => ({ ...tab, label: t(tab.labelKey) })),
@@ -743,15 +821,7 @@ export default function TransactionsView({
         id: "date",
         label: t("transactions.tableHeaders.date"),
         minWidth: 160,
-        render: (transaction) => {
-          const tag = tagByTransactionId.get(transaction.id);
-          return (
-            <div className="space-y-1">
-              <span className="block text-gray-700">{formatDate(transaction.date)}</span>
-              {tag ? <TagBadge value={tag} /> : null}
-            </div>
-          );
-        },
+        render: (transaction) => <span className="block text-gray-700">{formatDate(transaction.date)}</span>,
       },
       {
         id: "category",
@@ -857,6 +927,18 @@ export default function TransactionsView({
         },
       },
       {
+        id: "transactionTag",
+        label: t("transactions.tableHeaders.transactionTag"),
+        minWidth: 160,
+        render: (transaction) => {
+          const info = displayTagByTransactionId.get(transaction.id);
+          if (!info) {
+            return <span className="text-gray-400">-</span>;
+          }
+          return <TransactionTagBadge info={info} />;
+        },
+      },
+      {
         id: "back",
         label: t("transactions.tableHeaders.back"),
         minWidth: 160,
@@ -913,7 +995,7 @@ export default function TransactionsView({
         summary: (summary) => formatNumber(summary.finalPrice),
       },
     ],
-    [amountWordsMap, tagByTransactionId, t]
+    [amountWordsMap, displayTagByTransactionId, t]
   );
 
   const columnConfigById = useMemo(() => {
@@ -1114,9 +1196,16 @@ export default function TransactionsView({
 
     return base
       .filter((transaction) => {
-        const tag = tagByTransactionId.get(transaction.id) ?? null;
+        const displayInfo = displayTagByTransactionId.get(transaction.id);
+        const debtTag = debtTagByTransactionId.get(transaction.id) ?? null;
+        const repaymentTag = repaymentTagByTransactionId.get(transaction.id) ?? null;
 
-        if (tagFilter !== "all" && tag !== tagFilter) {
+        if (
+          tagFilter !== "all" &&
+          tagFilter !== (displayInfo?.value ?? null) &&
+          tagFilter !== debtTag &&
+          tagFilter !== repaymentTag
+        ) {
           return false;
         }
 
@@ -1127,7 +1216,7 @@ export default function TransactionsView({
           if (!currentDebtTag) {
             return false;
           }
-          return tag === currentDebtTag;
+          return debtTag === currentDebtTag;
         }
 
         if (debtCycleFilter === "last") {
@@ -1137,7 +1226,7 @@ export default function TransactionsView({
           if (!previousDebtTag) {
             return false;
           }
-          return tag === previousDebtTag;
+          return debtTag === previousDebtTag;
         }
 
         if (debtCycleFilter.startsWith("tag:")) {
@@ -1145,7 +1234,7 @@ export default function TransactionsView({
             return false;
           }
           const target = debtCycleFilter.slice(4);
-          return tag === target;
+          return debtTag === target;
         }
 
         return true;
@@ -1161,14 +1250,16 @@ export default function TransactionsView({
         if (!isRepayment) {
           return false;
         }
-        const tag = tagByTransactionId.get(transaction.id);
+        const tag = repaymentTagByTransactionId.get(transaction.id);
         return tag === debtRepayTagFilter;
       });
   }, [
     showSelectedOnly,
     transactions,
     selectedIds,
-    tagByTransactionId,
+    displayTagByTransactionId,
+    debtTagByTransactionId,
+    repaymentTagByTransactionId,
     tagFilter,
     debtCycleFilter,
     isDebtTransaction,
@@ -1268,11 +1359,13 @@ export default function TransactionsView({
   ]);
 
   const resetButtonClasses = useMemo(() => {
-    const base = "inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium shadow-sm transition";
+    const base = "inline-flex h-9 w-9 items-center justify-center rounded-md border text-sm shadow-sm transition";
     const activeState = resetHighlighted
-      ? "border border-indigo-500 bg-indigo-600 text-white shadow"
-      : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-100";
-    const disabledState = isResetDisabled ? "cursor-not-allowed opacity-60 hover:bg-white" : "";
+      ? "border-indigo-500 bg-indigo-600 text-white shadow"
+      : "border-gray-300 bg-white text-gray-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700";
+    const disabledState = isResetDisabled
+      ? "cursor-not-allowed opacity-60 hover:border-gray-300 hover:bg-white hover:text-gray-400"
+      : "";
     return `${base} ${activeState} ${disabledState}`.trim();
   }, [isResetDisabled, resetHighlighted]);
 
@@ -1530,27 +1623,79 @@ export default function TransactionsView({
                 </div>
               </div>
 
-              <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                  <div className="flex flex-col gap-2 md:flex-1">
-                    <CustomSelect
-                      label={t("transactions.filters.account")}
-                      value={filters.accountId}
-                      onChange={(value) => updateFilters({ accountId: value === "__add_new__" ? undefined : value })}
-                      options={accountOptions}
-                    />
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3 md:justify-end">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="sm:col-span-2 xl:col-span-1">
+                  <CustomSelect
+                    label={t("transactions.filters.account")}
+                    value={filters.accountId}
+                    onChange={(value) => updateFilters({ accountId: value === "__add_new__" ? undefined : value })}
+                    options={accountOptions}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700" htmlFor="tag-filter">
+                    {t("transactions.filters.tagLabel")}
+                  </label>
+                  <select
+                    id="tag-filter"
+                    className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    value={tagFilter}
+                    onChange={(event) => setTagFilter(event.target.value)}
+                  >
+                    {tagOptions.map((option) => (
+                      <option key={option.value} value={option.value} disabled={option.disabled}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700" htmlFor="debt-cycle-filter">
+                    {t("transactions.filters.debtCycleLabel")}
+                  </label>
+                  <select
+                    id="debt-cycle-filter"
+                    className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    value={debtCycleFilter}
+                    onChange={(event) => setDebtCycleFilter(event.target.value)}
+                  >
+                    {debtCycleOptions.map((option) => (
+                      <option key={option.value} value={option.value} disabled={option.disabled}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700" htmlFor="debt-repay-filter">
+                    {t("transactions.filters.debtRepayLabel")}
+                  </label>
+                  <select
+                    id="debt-repay-filter"
+                    className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    value={debtRepayTagFilter}
+                    onChange={(event) => setDebtRepayTagFilter(event.target.value)}
+                  >
+                    {debtRepayTagOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="sm:col-span-2 xl:col-span-3 flex justify-end">
+                  <Tooltip label={t("transactions.filters.reset")} position="left">
                     <button
                       type="button"
                       onClick={handleReset}
                       className={resetButtonClasses}
                       aria-pressed={resetHighlighted}
                       disabled={isResetDisabled}
+                      aria-label={t("transactions.filters.reset")}
                     >
-                      {t("transactions.filters.reset")}
+                      <ResetFiltersIcon />
                     </button>
-                  </div>
+                  </Tooltip>
                 </div>
               </div>
             </div>
@@ -1564,6 +1709,16 @@ export default function TransactionsView({
           <div className="flex flex-col gap-4 border-b border-gray-200 bg-gray-50 px-4 py-4">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 xl:flex-1">
+                <Tooltip label={t("transactions.actions.addTooltip")}>
+                  <button
+                    type="button"
+                    onClick={handleOpenAddModal}
+                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 sm:flex-none"
+                  >
+                    <PlusIcon />
+                    {t("transactions.addButton")}
+                  </button>
+                </Tooltip>
                 <div className="relative flex-1">
                   <input
                     ref={searchInputRef}
@@ -1590,16 +1745,6 @@ export default function TransactionsView({
                     </div>
                   ) : null}
                 </div>
-                <Tooltip label={t("transactions.actions.addTooltip")}>
-                  <button
-                    type="button"
-                    onClick={handleOpenAddModal}
-                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-                  >
-                    <PlusIcon />
-                    {t("transactions.addButton")}
-                  </button>
-                </Tooltip>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
                 <NatureHoverMenu
@@ -1632,108 +1777,61 @@ export default function TransactionsView({
                     <ColumnsIcon active={isCustomizingTable} />
                   </button>
                 </Tooltip>
-                <button
-                  type="button"
-                  onClick={handleResetLayout}
-                  className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
-                >
-                  <RefreshIcon />
-                  {t("transactions.table.resetLayout")}
-                </button>
+                <Tooltip label={t("transactions.table.resetLayout")}>
+                  <button
+                    type="button"
+                    onClick={handleResetLayout}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-600 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                    aria-label={t("transactions.table.resetLayout")}
+                  >
+                    <RefreshIcon />
+                  </button>
+                </Tooltip>
               </div>
             </div>
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  <label htmlFor="transaction-tag-filter">Tags</label>
-                  <select
-                    id="transaction-tag-filter"
-                    value={tagFilter}
-                    onChange={(event) => setTagFilter(event.target.value)}
-                    className="min-w-[160px] rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal uppercase tracking-normal shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  >
-                    {tagOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  <label htmlFor="transaction-debt-filter">Debt</label>
-                  <select
-                    id="transaction-debt-filter"
-                    value={debtCycleFilter}
-                    onChange={(event) => setDebtCycleFilter(event.target.value)}
-                    className="min-w-[180px] rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal uppercase tracking-normal shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  >
-                    {debtCycleOptions.map((option) => (
-                      <option key={option.value} value={option.value} disabled={option.disabled}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  <label htmlFor="transaction-debt-repay-filter">Debt Repay Tag</label>
-                  <select
-                    id="transaction-debt-repay-filter"
-                    value={debtRepayTagFilter}
-                    onChange={(event) => setDebtRepayTagFilter(event.target.value)}
-                    className="min-w-[200px] rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal uppercase tracking-normal shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  >
-                    {debtRepayTagOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {filters.personId && (
-                  <button
-                    type="button"
-                    onClick={() => updateFilters({ personId: undefined })}
-                    className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-700 shadow-sm transition hover:bg-indigo-50"
-                  >
-                    <span>
-                      {t("transactions.filters.personFilter")}: {activeBorrowerName ?? t("transactions.filters.unknownPerson")}
+            <div className="flex flex-wrap items-center gap-3">
+              {filters.personId && (
+                <button
+                  type="button"
+                  onClick={() => updateFilters({ personId: undefined })}
+                  className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-700 shadow-sm transition hover:bg-indigo-50"
+                >
+                  <span>
+                    {t("transactions.filters.personFilter")}: {activeBorrowerName ?? t("transactions.filters.unknownPerson")}
+                  </span>
+                  <span aria-hidden="true">×</span>
+                </button>
+              )}
+              {shouldShowSelectedToggle ? (
+                <button
+                  type="button"
+                  onClick={() => setShowSelectedOnly((prev) => !prev)}
+                  className={`${
+                    showSelectedOnly
+                      ? "inline-flex items-center gap-2 rounded-full border border-indigo-600 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm"
+                      : "inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                  }`}
+                  aria-pressed={showSelectedOnly}
+                >
+                  <CheckCircleIcon active={showSelectedOnly} />
+                  <span>{t("transactions.filters.showOnlySelected")}</span>
+                  {selectedIds.size > 0 ? (
+                    <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">
+                      {selectedIds.size}
                     </span>
-                    <span aria-hidden="true">×</span>
-                  </button>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                {shouldShowSelectedToggle ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowSelectedOnly((prev) => !prev)}
-                    className={`${
-                      showSelectedOnly
-                        ? "inline-flex items-center gap-2 rounded-full border border-indigo-600 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm"
-                        : "inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
-                    }`}
-                    aria-pressed={showSelectedOnly}
-                  >
-                    <CheckCircleIcon active={showSelectedOnly} />
-                    <span>{t("transactions.filters.showOnlySelected")}</span>
-                    {selectedIds.size > 0 ? (
-                      <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">
-                        {selectedIds.size}
-                      </span>
-                    ) : null}
-                  </button>
-                ) : null}
-                <DeleteSelectedButton selectedIds={selectedIdsArray} onDeleted={clearSelection} />
-                {selectedIdsArray.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleDeselectAll}
-                    className="inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
-                  >
-                    {t("transactions.actions.deselect")}
-                  </button>
-                )}
-              </div>
+                  ) : null}
+                </button>
+              ) : null}
+              <DeleteSelectedButton selectedIds={selectedIdsArray} onDeleted={clearSelection} />
+              {selectedIdsArray.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleDeselectAll}
+                  className="inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-100"
+                >
+                  {t("transactions.actions.deselect")}
+                </button>
+              )}
             </div>
           </div>
 

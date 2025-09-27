@@ -4,6 +4,7 @@ import type {
   TransactionListItem,
 } from "@/app/transactions/types";
 import { natureCodeMap } from "@/app/transactions/constants";
+import { formatDateTag } from "@/lib/dateTag";
 
 export type DashboardAccount = {
   id: string;
@@ -40,6 +41,8 @@ type MockTransactionSeed = {
   categoryName: string | null;
   subcategoryName: string | null;
   transactionNature: "IN" | "EX" | "TF";
+  debtTag?: string | null;
+  debtCycleTag?: string | null;
 };
 
 type MockSubcategory = {
@@ -306,6 +309,8 @@ function mapToTransactionListItem(seed: MockTransactionSeed): TransactionListIte
     subcategoryId: seed.subcategoryId ?? null,
     shopId: seed.shopId ?? null,
     transactionNature: seed.transactionNature,
+    debtTag: seed.debtTag ?? formatDateTag(seed.date) ?? null,
+    debtCycleTag: seed.debtCycleTag ?? null,
   };
 }
 
