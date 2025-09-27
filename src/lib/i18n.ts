@@ -185,7 +185,15 @@ const resources = {
         addNew: "Add new shop",
       },
       fields: {
+        name: "Name",
         type: "Category",
+        created: "Created",
+        imageUrl: "Image URL",
+      },
+      tableHeaders: {
+        icon: "Logo",
+        name: "Name",
+        type: "Type",
         created: "Created",
       },
       summary: {
@@ -196,6 +204,18 @@ const resources = {
         ecommerce: "E-commerce",
         retail: "Retail",
         other: "Other",
+      },
+      modal: {
+        addTitle: "Add new shop",
+        namePlaceholder: "Enter shop name",
+        imagePlaceholder: "https://example.com/logo.png",
+        notesPlaceholder: "Additional details",
+        submit: "Create shop",
+      },
+      typePicker: {
+        placeholder: "Enter a new type",
+        save: "Save",
+        addLabel: "Add new type",
       },
       empty: "No shops found for the selected filters.",
     },
@@ -504,7 +524,15 @@ const resources = {
         addNew: "Thêm cửa hàng",
       },
       fields: {
+        name: "Tên",
         type: "Phân loại",
+        created: "Ngày tạo",
+        imageUrl: "URL hình ảnh",
+      },
+      tableHeaders: {
+        icon: "Biểu tượng",
+        name: "Tên",
+        type: "Loại",
         created: "Ngày tạo",
       },
       summary: {
@@ -515,6 +543,18 @@ const resources = {
         ecommerce: "Thương mại điện tử",
         retail: "Bán lẻ",
         other: "Khác",
+      },
+      modal: {
+        addTitle: "Thêm cửa hàng mới",
+        namePlaceholder: "Nhập tên cửa hàng",
+        imagePlaceholder: "https://example.com/logo.png",
+        notesPlaceholder: "Ghi chú thêm",
+        submit: "Tạo cửa hàng",
+      },
+      typePicker: {
+        placeholder: "Nhập loại mới",
+        save: "Lưu",
+        addLabel: "Thêm loại mới",
       },
       empty: "Không tìm thấy cửa hàng phù hợp.",
     },
