@@ -41,7 +41,7 @@ type TransactionData = {
   notes: string | null;
   fromAccountId?: string | null;
   toAccountId?: string | null;
-  subcategoryId?: string | null;
+  categoryId?: string | null;
   personId?: string | null;
   date: string;
   cashback: CashbackData | null; // include cashback information
@@ -68,12 +68,12 @@ async function persistTransaction(data: TransactionData, options: { id?: string 
 
   const normalizedFromAccountId = data.fromAccountId?.trim() || null;
   const normalizedToAccountId = data.toAccountId?.trim() || null;
-  const normalizedSubcategoryId = data.subcategoryId?.trim() || null;
+  const normalizedCategoryId = data.categoryId?.trim() || null;
   const normalizedPersonId = data.personId?.trim() || null;
   const normalizedShopId = data.shopId?.trim() || null;
   const normalizedNotes = data.notes?.trim() ? data.notes.trim() : null;
 
-  if (normalizedSubcategoryId && !UUID_REGEX.test(normalizedSubcategoryId)) {
+  if (normalizedCategoryId && !UUID_REGEX.test(normalizedCategoryId)) {
     return { success: false, message: "Please select a valid category before saving." };
   }
 
@@ -170,7 +170,7 @@ async function persistTransaction(data: TransactionData, options: { id?: string 
     final_price: finalPrice,
     from_account_id: null,
     to_account_id: null,
-    subcategory_id: null,
+    category_id: null,
     person_id: normalizedPersonId,
     shop_id: normalizedShopId,
     debt_tag: null,
@@ -178,19 +178,19 @@ async function persistTransaction(data: TransactionData, options: { id?: string 
   };
 
   if (data.activeTab === "expense") {
-    if (!normalizedFromAccountId || !normalizedSubcategoryId) {
+    if (!normalizedFromAccountId || !normalizedCategoryId) {
       return { success: false, message: "Please choose an account and category." };
     }
     transactionToPersist.from_account_id = normalizedFromAccountId;
-    transactionToPersist.subcategory_id = normalizedSubcategoryId;
+    transactionToPersist.category_id = normalizedCategoryId;
   } else if (data.activeTab === "income") {
-    if (!normalizedToAccountId || !normalizedSubcategoryId) {
+    if (!normalizedToAccountId || !normalizedCategoryId) {
       return { success: false, message: "Please choose an account and category." };
     }
     transactionToPersist.to_account_id = normalizedToAccountId;
-    transactionToPersist.subcategory_id = normalizedSubcategoryId;
+    transactionToPersist.category_id = normalizedCategoryId;
   } else if (data.activeTab === "transfer") {
-    if (!normalizedFromAccountId || !normalizedToAccountId || !normalizedSubcategoryId) {
+    if (!normalizedFromAccountId || !normalizedToAccountId || !normalizedCategoryId) {
       return { success: false, message: "Please choose both accounts and a category." };
     }
     if (normalizedFromAccountId === normalizedToAccountId) {
@@ -198,7 +198,7 @@ async function persistTransaction(data: TransactionData, options: { id?: string 
     }
     transactionToPersist.from_account_id = normalizedFromAccountId;
     transactionToPersist.to_account_id = normalizedToAccountId;
-    transactionToPersist.subcategory_id = normalizedSubcategoryId;
+    transactionToPersist.category_id = normalizedCategoryId;
   } else if (data.activeTab === "debt") {
     if (!normalizedPersonId) {
       return { success: false, message: "Please choose a person and account." };
@@ -220,8 +220,8 @@ async function persistTransaction(data: TransactionData, options: { id?: string 
       transactionToPersist.debt_tag = data.debtTag?.trim() || null;
     }
 
-    if (normalizedSubcategoryId) {
-      transactionToPersist.subcategory_id = normalizedSubcategoryId;
+    if (normalizedCategoryId) {
+      transactionToPersist.category_id = normalizedCategoryId;
     }
   } else {
     return { success: false, message: "Unsupported transaction type." };

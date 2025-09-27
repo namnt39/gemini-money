@@ -20,7 +20,6 @@ type ActionResult = {
   success: boolean;
   message: string;
   categoryId?: string;
-  subcategoryId?: string;
 };
 
 const normalizeImageUrl = (value?: string | null) => {
@@ -78,31 +77,6 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
     return { success: false, message: "Unable to create a new category." };
   }
 
-  const subcategoryPayload = {
-    category_id: categoryId,
-    name,
-    image_url: createdCategory?.image_url ?? null,
-    transaction_nature:
-      transactionNature === "DE"
-        ? transactionNature
-        : createdCategory?.transaction_nature ?? transactionNature,
-  };
-
-  const { data: createdSubcategory, error: subcategoryError } = await supabaseClient
-    .from("subcategories")
-    .insert(subcategoryPayload)
-    .select("id")
-    .single();
-
-  if (subcategoryError) {
-    console.error("Unable to create subcategory for category:", subcategoryError);
-    await supabaseClient.from("categories").delete().eq("id", categoryId);
-    const detail = subcategoryError?.message ? `: ${subcategoryError.message}` : "";
-    return { success: false, message: `Unable to create a new category${detail}.` };
-  }
-
-  const subcategoryId = createdSubcategory?.id;
-
   revalidatePath("/categories");
   revalidatePath("/transactions");
   revalidatePath("/transactions/add");
@@ -112,13 +86,11 @@ export async function createCategory(input: CreateCategoryInput): Promise<Action
     success: true,
     message: "Category created successfully!",
     categoryId,
-    subcategoryId,
   };
 }
 
 type DeleteCategoryInput = {
   categoryId: string;
-  subcategoryId?: string | null;
 };
 
 export async function deleteCategory(input: DeleteCategoryInput): Promise<ActionResult> {
@@ -127,54 +99,12 @@ export async function deleteCategory(input: DeleteCategoryInput): Promise<Action
   if (!categoryId) {
     return { success: false, message: "Invalid category identifier." };
   }
+  const { error: categoryError } = await supabaseClient.from("categories").delete().eq("id", categoryId);
 
-  const subcategoryId = input.subcategoryId?.trim() || null;
-
-  const { error: subcategoryError } = subcategoryId
-    ? await supabaseClient.from("subcategories").delete().eq("id", subcategoryId)
-    : { error: null };
-
-  if (subcategoryError) {
-    console.error("Unable to delete subcategory:", subcategoryError);
-    const detail = subcategoryError.message ? `: ${subcategoryError.message}` : "";
+  if (categoryError) {
+    console.error("Unable to delete category:", categoryError);
+    const detail = categoryError.message ? `: ${categoryError.message}` : "";
     return { success: false, message: `Unable to delete category${detail}.` };
-  }
-
-  let shouldDeleteCategory = !subcategoryId;
-
-  if (subcategoryId) {
-    const { count, error: remainingError } = await supabaseClient
-      .from("subcategories")
-      .select("id", { count: "exact", head: true })
-      .eq("category_id", categoryId);
-
-    if (remainingError) {
-      console.error("Unable to verify remaining subcategories:", remainingError);
-      const detail = remainingError.message ? `: ${remainingError.message}` : "";
-      return { success: false, message: `Unable to delete category${detail}.` };
-    }
-
-    shouldDeleteCategory = (count ?? 0) === 0;
-  }
-
-  if (shouldDeleteCategory) {
-    const { error: cleanupError } = await supabaseClient
-      .from("subcategories")
-      .delete()
-      .eq("category_id", categoryId);
-    if (cleanupError) {
-      console.warn("Unable to clean up subcategories for category:", cleanupError);
-    }
-
-    const { error: categoryError } = await supabaseClient
-      .from("categories")
-      .delete()
-      .eq("id", categoryId);
-    if (categoryError) {
-      console.error("Unable to delete category:", categoryError);
-      const detail = categoryError.message ? `: ${categoryError.message}` : "";
-      return { success: false, message: `Unable to delete category${detail}.` };
-    }
   }
 
   revalidatePath("/categories");
@@ -186,7 +116,6 @@ export async function deleteCategory(input: DeleteCategoryInput): Promise<Action
     success: true,
     message: "Category deleted successfully.",
     categoryId,
-    subcategoryId: subcategoryId ?? undefined,
   };
 }
 

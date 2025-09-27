@@ -35,22 +35,20 @@ type MockTransactionSeed = {
   notes: string | null;
   fromAccountId: string | null;
   toAccountId: string | null;
-  subcategoryId?: string | null;
+  categoryId?: string | null;
   shopId?: string | null;
   person?: { id: string; name: string; image_url: string | null } | null;
   categoryName: string | null;
-  subcategoryName: string | null;
   transactionNature: "IN" | "EX" | "TF";
   debtTag?: string | null;
   debtCycleTag?: string | null;
 };
 
-type MockSubcategory = {
+type MockCategory = {
   id: string;
   name: string;
   image_url: string | null;
   transaction_nature: "EX" | "IN" | "TF" | "DE";
-  categories: { name: string; transaction_nature: "EX" | "IN" | "TF" | "DE" }[];
   is_shop?: boolean;
 };
 
@@ -120,8 +118,7 @@ const mockTransactions: MockTransactionSeed[] = [
     notes: "Weekly supermarket run",
     fromAccountId: "acc-credit-card",
     toAccountId: null,
-    categoryName: "Groceries",
-    subcategoryName: "Supermarket",
+    categoryName: "Supermarket",
     transactionNature: "EX",
   },
   {
@@ -134,8 +131,7 @@ const mockTransactions: MockTransactionSeed[] = [
     notes: "Salary for November",
     fromAccountId: null,
     toAccountId: "acc-salary-account",
-    categoryName: "Income",
-    subcategoryName: "Salary",
+    categoryName: "Salary",
     transactionNature: "IN",
   },
   {
@@ -148,8 +144,7 @@ const mockTransactions: MockTransactionSeed[] = [
     notes: "Rent payment",
     fromAccountId: "acc-salary-account",
     toAccountId: null,
-    categoryName: "Housing",
-    subcategoryName: "Rent",
+    categoryName: "Rent",
     transactionNature: "EX",
   },
   {
@@ -162,8 +157,7 @@ const mockTransactions: MockTransactionSeed[] = [
     notes: "Transfer to investment fund",
     fromAccountId: "acc-salary-account",
     toAccountId: "acc-investment",
-    categoryName: "Transfer",
-    subcategoryName: "Investments",
+    categoryName: "Investments",
     transactionNature: "TF",
   },
   {
@@ -178,8 +172,7 @@ const mockTransactions: MockTransactionSeed[] = [
     fromAccountId: "acc-cash-wallet",
     toAccountId: null,
     person: { id: "person-minh", name: "Minh Nguyen", image_url: null },
-    categoryName: "Dining",
-    subcategoryName: "Coffee",
+    categoryName: "Coffee",
     transactionNature: "EX",
   },
   {
@@ -192,19 +185,17 @@ const mockTransactions: MockTransactionSeed[] = [
     notes: "Freelance project payment",
     fromAccountId: null,
     toAccountId: "acc-salary-account",
-    categoryName: "Income",
-    subcategoryName: "Freelance",
+    categoryName: "Freelance",
     transactionNature: "IN",
   },
 ];
 
-const mockSubcategories: MockSubcategory[] = [
+const mockCategories: MockCategory[] = [
   {
     id: "sub-supermarket",
     name: "Supermarket",
     image_url: null,
     transaction_nature: "EX",
-    categories: [{ name: "Groceries", transaction_nature: "EX" }],
     is_shop: true,
   },
   {
@@ -212,7 +203,6 @@ const mockSubcategories: MockSubcategory[] = [
     name: "Salary",
     image_url: null,
     transaction_nature: "IN",
-    categories: [{ name: "Income", transaction_nature: "IN" }],
     is_shop: false,
   },
   {
@@ -220,7 +210,6 @@ const mockSubcategories: MockSubcategory[] = [
     name: "Investments",
     image_url: null,
     transaction_nature: "TF",
-    categories: [{ name: "Transfers", transaction_nature: "TF" }],
     is_shop: false,
   },
   {
@@ -228,7 +217,6 @@ const mockSubcategories: MockSubcategory[] = [
     name: "Rent",
     image_url: null,
     transaction_nature: "EX",
-    categories: [{ name: "Housing", transaction_nature: "EX" }],
     is_shop: false,
   },
   {
@@ -236,7 +224,6 @@ const mockSubcategories: MockSubcategory[] = [
     name: "Coffee",
     image_url: null,
     transaction_nature: "EX",
-    categories: [{ name: "Dining", transaction_nature: "EX" }],
     is_shop: true,
   },
   {
@@ -244,7 +231,6 @@ const mockSubcategories: MockSubcategory[] = [
     name: "Freelance",
     image_url: null,
     transaction_nature: "IN",
-    categories: [{ name: "Income", transaction_nature: "IN" }],
     is_shop: false,
   },
 ];
@@ -305,8 +291,7 @@ function mapToTransactionListItem(seed: MockTransactionSeed): TransactionListIte
     personId: seed.person?.id ?? null,
     person: seed.person ?? null,
     categoryName: seed.categoryName,
-    subcategoryName: seed.subcategoryName,
-    subcategoryId: seed.subcategoryId ?? null,
+    categoryId: seed.categoryId ?? null,
     shopId: seed.shopId ?? null,
     transactionNature: seed.transactionNature,
     debtTag: seed.debtTag ?? formatDateTag(seed.date) ?? null,
@@ -368,7 +353,6 @@ export function getMockTransactions(
       const haystacks = [
         transaction.notes,
         transaction.categoryName,
-        transaction.subcategoryName,
         transaction.person?.name,
       ];
       const matches = haystacks.some((value) => value?.toLowerCase().includes(normalizedSearch));
@@ -393,12 +377,12 @@ export function getMockTransactions(
 
 export function getMockTransactionFormData(): {
   accounts: DashboardAccount[];
-  subcategories: MockSubcategory[];
+  categories: MockCategory[];
   people: MockPerson[];
 } {
   return {
     accounts: cloneAccounts(),
-    subcategories: mockSubcategories.map((subcategory) => ({ ...subcategory })),
+    categories: mockCategories.map((category) => ({ ...category })),
     people: mockPeople.map((person) => ({ ...person })),
   };
 }

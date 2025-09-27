@@ -15,70 +15,27 @@ export type Account = {
   max_cashback_amount: number | null;
 };
 
-type CategoryInfo = {
-  name: string;
-  transaction_nature: TransactionNatureCode | null;
-};
-
-type CategoryRelation = {
-  name?: string | null;
-  transaction_nature?: string | null;
-};
-
-const normalizeCategoryRelations = (
-  categories?: CategoryRelation | CategoryRelation[] | null
-): CategoryInfo[] | CategoryInfo | null => {
-  if (!categories) {
-    return null;
-  }
-  const wasArray = Array.isArray(categories);
-  const list = wasArray ? categories : [categories];
-  const normalized = list
-    .map((item) => {
-      if (!item) {
-        return null;
-      }
-      const name = typeof item.name === "string" && item.name.trim() ? item.name : "";
-      return {
-        name,
-        transaction_nature: normalizeTransactionNature(item.transaction_nature ?? null),
-      } satisfies CategoryInfo;
-    })
-    .filter((value): value is CategoryInfo => Boolean(value));
-
-  if (normalized.length === 0) {
-    return null;
-  }
-  if (wasArray) {
-    return normalized;
-  }
-  return normalized[0];
-};
-
-const mapSubcategoryRecord = (input: {
-  id: string;
-  name: string;
-  image_url: string | null;
-  transaction_nature?: string | null;
-  is_shop?: boolean | null;
-  categories?: CategoryRelation | CategoryRelation[] | null;
-}): Subcategory => ({
-  id: input.id,
-  name: input.name,
-  image_url: input.image_url ?? null,
-  transaction_nature: normalizeTransactionNature(input.transaction_nature ?? null) ?? null,
-  categories: normalizeCategoryRelations(input.categories),
-  is_shop: input.is_shop ?? false,
-});
-
-export type Subcategory = {
+export type Category = {
   id: string;
   name: string;
   image_url: string | null;
   transaction_nature?: TransactionNatureCode | null;
-  categories: CategoryInfo[] | CategoryInfo | null;
   is_shop?: boolean | null;
 };
+
+const mapCategoryRecord = (input: {
+  id: string;
+  name: string;
+  image_url: string | null;
+  transaction_nature?: string | null;
+  is_shop?: boolean | null;
+}): Category => ({
+  id: input.id,
+  name: input.name,
+  image_url: input.image_url ?? null,
+  transaction_nature: normalizeTransactionNature(input.transaction_nature ?? null) ?? null,
+  is_shop: typeof input.is_shop === "boolean" ? input.is_shop : input.is_shop ?? null,
+});
 
 export type Shop = {
   id: string;
@@ -97,10 +54,10 @@ export type Person = {
 
 type FormDataResult = {
   accounts: Account[];
-  subcategories: Subcategory[];
+  categories: Category[];
   people: Person[];
   shops: Shop[];
-  usingMockSubcategories: boolean;
+  usingMockCategories: boolean;
 };
 
 const fallbackShops: Shop[] = [
@@ -122,18 +79,12 @@ const fallbackShops: Shop[] = [
   },
 ];
 
-const DEFAULT_TRANSFER_CATEGORY: Subcategory = {
+const DEFAULT_TRANSFER_CATEGORY: Category = {
   id: "a6f07c8d-4ec6-4c2b-8a7e-d2a5f8d5c1f0",
   name: "General Transfer",
   image_url: null,
   transaction_nature: "TF",
   is_shop: false,
-  categories: [
-    {
-      name: "Transfers",
-      transaction_nature: "TF",
-    },
-  ],
 };
 
 const extractMeaningfulError = (error: unknown): string | null => {
@@ -176,15 +127,14 @@ export async function loadTransactionFormData(): Promise<FormDataResult> {
   const supabaseClient = supabase;
 
   if (!isSupabaseConfigured || !supabaseClient) {
-    const { accounts, subcategories, people } = getMockTransactionFormData();
-    const normalizedSubcategories = subcategories.map((subcategory) =>
-      mapSubcategoryRecord({
-        id: subcategory.id,
-        name: subcategory.name,
-        image_url: subcategory.image_url,
-        transaction_nature: subcategory.transaction_nature,
-        is_shop: subcategory.is_shop ?? false,
-        categories: subcategory.categories,
+    const { accounts, categories, people } = getMockTransactionFormData();
+    const normalizedCategories = categories.map((category) =>
+      mapCategoryRecord({
+        id: category.id,
+        name: category.name,
+        image_url: category.image_url,
+        transaction_nature: category.transaction_nature,
+        is_shop: category.is_shop ?? false,
       })
     );
 
@@ -205,27 +155,27 @@ export async function loadTransactionFormData(): Promise<FormDataResult> {
       max_cashback_amount: account.max_cashback_amount,
     }));
 
-    const includesTransfer = normalizedSubcategories.some(
-      (subcategory) => normalizeTransactionNature(subcategory.transaction_nature ?? null) === "TF"
+    const includesTransfer = normalizedCategories.some(
+      (category) => normalizeTransactionNature(category.transaction_nature ?? null) === "TF"
     );
 
     return {
       accounts: normalizedAccounts,
-      subcategories: includesTransfer
-        ? normalizedSubcategories
-        : [...normalizedSubcategories, DEFAULT_TRANSFER_CATEGORY],
+      categories: includesTransfer
+        ? normalizedCategories
+        : [...normalizedCategories, DEFAULT_TRANSFER_CATEGORY],
       people: normalizedPeople,
       shops: fallbackShops,
-      usingMockSubcategories: true,
+      usingMockCategories: true,
     };
   }
 
   const accountsPromise = supabaseClient
     .from("accounts")
     .select("id, name, image_url, type, is_cashback_eligible, cashback_percentage, max_cashback_amount");
-  const subcategoriesPromise = supabaseClient
-    .from("subcategories")
-    .select("id, name, image_url, is_shop, transaction_nature, categories(name, transaction_nature)");
+  const categoriesPromise = supabaseClient
+    .from("categories")
+    .select("id, name, image_url, is_shop, transaction_nature");
   const peoplePromise = supabaseClient.from("people").select("id, name, image_url, is_group");
   const shopsPromise = supabaseClient
     .from("shops")
@@ -234,18 +184,18 @@ export async function loadTransactionFormData(): Promise<FormDataResult> {
 
   const [
     { data: accounts, error: accountsError },
-    { data: subcategories, error: subcategoriesError },
+    { data: categories, error: categoriesError },
     { data: people, error: peopleError },
     { data: shops, error: shopsError },
-  ] = await Promise.all([accountsPromise, subcategoriesPromise, peoplePromise, shopsPromise]);
+  ] = await Promise.all([accountsPromise, categoriesPromise, peoplePromise, shopsPromise]);
 
   const accountsErrorMessage = extractMeaningfulError(accountsError);
   if (accountsErrorMessage) {
     console.error("Failed to fetch accounts:", accountsErrorMessage);
   }
-  const subcategoriesErrorMessage = extractMeaningfulError(subcategoriesError);
-  if (subcategoriesErrorMessage) {
-    console.error("Failed to fetch subcategories:", subcategoriesErrorMessage);
+  const categoriesErrorMessage = extractMeaningfulError(categoriesError);
+  if (categoriesErrorMessage) {
+    console.error("Failed to fetch categories:", categoriesErrorMessage);
   }
   const peopleErrorMessage = extractMeaningfulError(peopleError);
   if (peopleErrorMessage) {
@@ -256,47 +206,44 @@ export async function loadTransactionFormData(): Promise<FormDataResult> {
     console.error("Failed to fetch shops:", shopsErrorMessage);
   }
 
-  type RawSubcategory = {
+  type RawCategory = {
     id: string;
     name: string;
     image_url: string | null;
     transaction_nature?: string | null;
     is_shop?: boolean | null;
-    categories?: CategoryRelation | CategoryRelation[] | null;
   };
 
-  let normalizedSubcategories = ((subcategories as RawSubcategory[] | null) || []).map((item) =>
-    mapSubcategoryRecord({
+  let normalizedCategories = ((categories as RawCategory[] | null) || []).map((item) =>
+    mapCategoryRecord({
       id: item.id,
       name: item.name,
       image_url: item.image_url,
       transaction_nature: item.transaction_nature,
       is_shop: item.is_shop,
-      categories: item.categories,
     })
   );
 
-  const usingMockSubcategories = normalizedSubcategories.length === 0;
+  const usingMockCategories = normalizedCategories.length === 0;
 
-  if (usingMockSubcategories) {
-    const { subcategories: fallbackSubcategories } = getMockTransactionFormData();
-    normalizedSubcategories = fallbackSubcategories.map((subcategory) =>
-      mapSubcategoryRecord({
-        id: subcategory.id,
-        name: subcategory.name,
-        image_url: subcategory.image_url,
-        transaction_nature: subcategory.transaction_nature,
-        is_shop: subcategory.is_shop ?? false,
-        categories: subcategory.categories,
+  if (usingMockCategories) {
+    const { categories: fallbackCategories } = getMockTransactionFormData();
+    normalizedCategories = fallbackCategories.map((category) =>
+      mapCategoryRecord({
+        id: category.id,
+        name: category.name,
+        image_url: category.image_url,
+        transaction_nature: category.transaction_nature,
+        is_shop: category.is_shop ?? false,
       })
     );
 
-    const includesTransfer = normalizedSubcategories.some(
-      (subcategory) => normalizeTransactionNature(subcategory.transaction_nature ?? null) === "TF"
+    const includesTransfer = normalizedCategories.some(
+      (category) => normalizeTransactionNature(category.transaction_nature ?? null) === "TF"
     );
 
     if (!includesTransfer) {
-      normalizedSubcategories = [...normalizedSubcategories, DEFAULT_TRANSFER_CATEGORY];
+      normalizedCategories = [...normalizedCategories, DEFAULT_TRANSFER_CATEGORY];
     }
   }
 
@@ -306,10 +253,10 @@ export async function loadTransactionFormData(): Promise<FormDataResult> {
 
   return {
     accounts: typedAccounts,
-    subcategories: normalizedSubcategories,
+    categories: normalizedCategories,
     people: typedPeople,
     shops: typedShops.length > 0 ? typedShops : fallbackShops,
-    usingMockSubcategories,
+    usingMockCategories,
   };
 }
 

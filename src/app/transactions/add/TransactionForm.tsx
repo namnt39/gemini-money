@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Account, Subcategory, Person, Shop } from "./formData";
+import { Account, Category, Person, Shop } from "./formData";
 import { createTransaction, updateTransaction } from "../actions";
 import AmountInput from "@/components/forms/AmountInput";
 import CustomSelect from "@/components/forms/CustomSelect";
@@ -20,12 +20,12 @@ type DebtMode = "collect" | "lend";
 
 type TransactionFormProps = {
   accounts: Account[];
-  subcategories: Subcategory[];
+  categories: Category[];
   people: Person[];
   shops: Shop[];
-  usingMockSubcategories: boolean;
+  usingMockCategories: boolean;
   returnTo: string;
-  createdSubcategoryId?: string;
+  createdCategoryId?: string;
   initialTab?: Tab;
   initialTransaction?: TransactionListItem;
   mode?: "create" | "edit";
@@ -41,7 +41,7 @@ type PersistedState = {
   amount: string;
   fromAccountId: string;
   toAccountId: string;
-  subcategoryId: string;
+  categoryId: string;
   personId: string;
   notes: string;
   date: string;
@@ -181,12 +181,12 @@ const resolveDebtModeFromTransaction = (record: TransactionListItem | null): Deb
 
 export default function TransactionForm({
   accounts,
-  subcategories,
+  categories,
   people,
   shops,
-  usingMockSubcategories,
+  usingMockCategories,
   returnTo,
-  createdSubcategoryId,
+  createdCategoryId,
   initialTab,
   initialTransaction,
   mode = "create",
@@ -220,7 +220,7 @@ export default function TransactionForm({
           amount: parsed.amount ?? "",
           fromAccountId: parsed.fromAccountId ?? "",
           toAccountId: parsed.toAccountId ?? "",
-          subcategoryId: parsed.subcategoryId ?? "",
+          categoryId: parsed.categoryId ?? "",
           personId: parsed.personId ?? "",
           notes: parsed.notes ?? "",
           date: parsed.date ?? today,
@@ -258,7 +258,7 @@ export default function TransactionForm({
     : persistedState?.amount ?? "";
   const defaultFromAccount = editingTransaction?.fromAccountId ?? persistedState?.fromAccountId ?? "";
   const defaultToAccount = editingTransaction?.toAccountId ?? persistedState?.toAccountId ?? "";
-  const defaultSubcategory = editingTransaction?.subcategoryId ?? persistedState?.subcategoryId ?? "";
+  const defaultCategory = editingTransaction?.categoryId ?? persistedState?.categoryId ?? "";
   const defaultPerson = editingTransaction?.personId ?? persistedState?.personId ?? "";
   const defaultNotes = editingTransaction?.notes ?? persistedState?.notes ?? "";
   const defaultDate = editingTransaction
@@ -285,7 +285,7 @@ export default function TransactionForm({
   const [amount, setAmount] = useState(defaultAmount);
   const [fromAccountId, setFromAccountId] = useState(defaultFromAccount);
   const [toAccountId, setToAccountId] = useState(defaultToAccount);
-  const [subcategoryId, setSubcategoryId] = useState(defaultSubcategory);
+  const [categoryId, setCategoryId] = useState(defaultCategory);
   const [personId, setPersonId] = useState(defaultPerson);
   const [notes, setNotes] = useState(defaultNotes);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -347,25 +347,30 @@ export default function TransactionForm({
     return `shop-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }, []);
 
-  const getTransactionNature = useCallback((sub: Subcategory): TransactionNatureCode | null => {
-    const direct = normalizeTransactionNature(sub.transaction_nature ?? null);
-    if (direct) return direct;
-    if (!sub.categories) return null;
-    if (Array.isArray(sub.categories)) {
-      return normalizeTransactionNature(sub.categories[0]?.transaction_nature ?? null);
-    }
-    return null;
-  }, []);
+  const getTransactionNature = useCallback(
+    (category: Category): TransactionNatureCode | null => {
+      return normalizeTransactionNature(category.transaction_nature ?? null);
+    },
+    []
+  );
 
 
   // Options
-  const expenseCategories = useMemo(
-    () => subcategories.filter((s) => getTransactionNature(s) === "EX").map(mapToOptions),
-    [subcategories, getTransactionNature, mapToOptions]
+  const expenseCategoryOptions = useMemo(
+    () => categories.filter((category) => getTransactionNature(category) === "EX").map(mapToOptions),
+    [categories, getTransactionNature, mapToOptions]
   );
-  const incomeCategories = useMemo(
-    () => subcategories.filter((s) => getTransactionNature(s) === "IN").map(mapToOptions),
-    [subcategories, getTransactionNature, mapToOptions]
+  const incomeCategoryOptions = useMemo(
+    () => categories.filter((category) => getTransactionNature(category) === "IN").map(mapToOptions),
+    [categories, getTransactionNature, mapToOptions]
+  );
+  const transferCategoryOptions = useMemo(
+    () => categories.filter((category) => getTransactionNature(category) === "TF").map(mapToOptions),
+    [categories, getTransactionNature, mapToOptions]
+  );
+  const debtCategoryOptions = useMemo(
+    () => categories.filter((category) => getTransactionNature(category) === "DE").map(mapToOptions),
+    [categories, getTransactionNature, mapToOptions]
   );
   const accountsWithOptions = useMemo(() => accounts.map(mapToOptions), [accounts, mapToOptions]);
   const bankAccountOptions = useMemo(
@@ -375,18 +380,18 @@ export default function TransactionForm({
   const peopleWithOptions = useMemo(() => people.map(mapToOptions), [people, mapToOptions]);
   const shopOptions = useMemo(() => shopRecords.map(mapToOptions), [mapToOptions, shopRecords]);
 
-  const selectedSubcategory = useMemo(
-    () => (subcategoryId ? subcategories.find((s) => s.id === subcategoryId) ?? null : null),
-    [subcategoryId, subcategories]
+  const selectedCategory = useMemo(
+    () => (categoryId ? categories.find((category) => category.id === categoryId) ?? null : null),
+    [categoryId, categories]
   );
 
-  const isShopCategory = selectedSubcategory?.is_shop ?? false;
+  const isShopCategory = selectedCategory?.is_shop ?? false;
 
   useEffect(() => {
-    if (usingMockSubcategories && subcategoryId) {
-      setSubcategoryId("");
+    if (categories.length === 0 && categoryId) {
+      setCategoryId("");
     }
-  }, [subcategoryId, usingMockSubcategories]);
+  }, [categoryId, categories.length]);
 
   const shouldShowShopSection = useMemo(() => {
     if (activeTab === "debt") return true;
@@ -402,11 +407,11 @@ export default function TransactionForm({
 
   useEffect(() => {
     if (activeTab === "transfer") {
-      setSubcategoryId("");
+      setCategoryId("");
       if (!fromAccountId && accounts.length > 0) setFromAccountId(accounts[0].id);
       if (!toAccountId && bankAccountOptions.length > 0) setToAccountId(bankAccountOptions[0].id);
     } else if (activeTab === "debt") {
-      setSubcategoryId("");
+      setCategoryId("");
       if (debtMode === "lend") {
         setToAccountId("");
         if (!fromAccountId && accounts.length > 0) setFromAccountId(accounts[0].id);
@@ -420,19 +425,19 @@ export default function TransactionForm({
     }
   }, [activeTab, bankAccountOptions, debtMode, accounts, fromAccountId, toAccountId]);
 
-  // Created subcategory flow
+  // Created category flow
   const mapNatureToTabLocal = useCallback((code: TransactionNatureCode | null) => {
     const m = mapNatureToTab(code);
     return m ?? "expense";
   }, []);
   useEffect(() => {
-    if (!createdSubcategoryId) return;
-    const newly = subcategories.find((s) => s.id === createdSubcategoryId);
+    if (!createdCategoryId) return;
+    const newly = categories.find((category) => category.id === createdCategoryId);
     if (!newly) return;
-    setSubcategoryId(createdSubcategoryId);
+    setCategoryId(createdCategoryId);
     const mappedTab = mapNatureToTabLocal(getTransactionNature(newly));
     if (mappedTab && mappedTab !== activeTab) setActiveTab(mappedTab);
-  }, [createdSubcategoryId, subcategories, mapNatureToTabLocal, getTransactionNature, activeTab]);
+  }, [createdCategoryId, categories, mapNatureToTabLocal, getTransactionNature, activeTab]);
 
   // Cashback visibility
   useEffect(() => {
@@ -499,7 +504,7 @@ export default function TransactionForm({
     amount: defaultAmount,
     fromAccountId: defaultFromAccount,
     toAccountId: defaultToAccount,
-    subcategoryId: defaultSubcategory,
+    categoryId: defaultCategory,
     personId: defaultPerson,
     notes: defaultNotes,
     date: defaultDate,
@@ -520,7 +525,7 @@ export default function TransactionForm({
       s.amount !== amount ||
       s.fromAccountId !== fromAccountId ||
       s.toAccountId !== toAccountId ||
-      s.subcategoryId !== subcategoryId ||
+      s.categoryId !== categoryId ||
       s.personId !== personId ||
       s.notes !== notes ||
       s.date !== date ||
@@ -538,7 +543,7 @@ export default function TransactionForm({
     amount,
     fromAccountId,
     toAccountId,
-    subcategoryId,
+    categoryId,
     personId,
     notes,
     date,
@@ -582,7 +587,7 @@ export default function TransactionForm({
       amount,
       fromAccountId,
       toAccountId,
-      subcategoryId,
+      categoryId,
       personId,
       notes,
       date,
@@ -607,7 +612,7 @@ export default function TransactionForm({
     notes,
     personId,
     shopId,
-    subcategoryId,
+    categoryId,
     toAccountId,
     date,
     debtTagValue,
@@ -629,7 +634,7 @@ export default function TransactionForm({
     }
   }, [activeTab, t]);
 
-  const allowManagingCategories = !usingMockSubcategories;
+  const allowManagingCategories = !usingMockCategories;
 
   const handleAddAccount = useCallback(() => {
     alert(t("transactionForm.addAccountPlaceholder"));
@@ -708,7 +713,7 @@ export default function TransactionForm({
       notes: normalizedNotes,
       fromAccountId: preparedFromAccountId?.trim() ? preparedFromAccountId.trim() : undefined,
       toAccountId: preparedToAccountId?.trim() ? preparedToAccountId.trim() : undefined,
-      subcategoryId: subcategoryId?.trim() ? subcategoryId.trim() : undefined,
+      categoryId: categoryId?.trim() ? categoryId.trim() : undefined,
       personId: personId?.trim() ? personId.trim() : undefined,
       date,
       cashback: sanitizedCashback,
@@ -823,11 +828,11 @@ export default function TransactionForm({
         </div>
 
         <div className={contentWrapperClasses}>
-          {usingMockSubcategories ? (
+          {categories.length === 0 ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
               <p className="font-semibold">No categories available</p>
               <p className="mt-1">
-                Subcategories are currently unavailable. Please seed categories in Supabase before creating new
+                Categories are currently unavailable. Please seed categories in Supabase before creating new
                 transactions.
               </p>
             </div>
@@ -880,10 +885,10 @@ export default function TransactionForm({
 
               <CustomSelect
                 label={t("transactionForm.labels.expenseCategory")}
-                value={subcategoryId}
-                onChange={setSubcategoryId}
-                options={expenseCategories}
-                disabled={usingMockSubcategories}
+                value={categoryId}
+                onChange={setCategoryId}
+                options={expenseCategoryOptions}
+                disabled={categories.length === 0}
                 onAddNew={allowManagingCategories ? handleAddCategory : undefined}
                 addNewLabel={allowManagingCategories ? addCategoryLabel : undefined}
               />
@@ -903,10 +908,10 @@ export default function TransactionForm({
               />
               <CustomSelect
                 label={t("transactionForm.labels.incomeCategory")}
-                value={subcategoryId}
-                onChange={setSubcategoryId}
-                options={incomeCategories}
-                disabled={usingMockSubcategories}
+                value={categoryId}
+                onChange={setCategoryId}
+                options={incomeCategoryOptions}
+                disabled={categories.length === 0}
                 onAddNew={allowManagingCategories ? handleAddCategory : undefined}
                 addNewLabel={allowManagingCategories ? addCategoryLabel : undefined}
               />
@@ -938,6 +943,15 @@ export default function TransactionForm({
               <p className="text-xs text-indigo-600">
                 {t("transactionForm.hints.transferSameAccount")}
               </p>
+              <CustomSelect
+                label={t("transactionForm.labels.transferCategory")}
+                value={categoryId}
+                onChange={setCategoryId}
+                options={transferCategoryOptions}
+                disabled={categories.length === 0}
+                onAddNew={allowManagingCategories ? handleAddCategory : undefined}
+                addNewLabel={allowManagingCategories ? addCategoryLabel : undefined}
+              />
             </>
           )}
 
@@ -1076,6 +1090,15 @@ export default function TransactionForm({
                   addNewLabel={t("transactionForm.addAccount")}
                 />
               )}
+              <CustomSelect
+                label={t("transactionForm.labels.debtCategory")}
+                value={categoryId}
+                onChange={setCategoryId}
+                options={debtCategoryOptions}
+                disabled={categories.length === 0}
+                onAddNew={allowManagingCategories ? handleAddCategory : undefined}
+                addNewLabel={allowManagingCategories ? addCategoryLabel : undefined}
+              />
             </>
           )}
 

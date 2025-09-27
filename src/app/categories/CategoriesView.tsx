@@ -11,13 +11,13 @@ import { createTranslator } from "@/lib/i18n";
 import { normalizeTransactionNature } from "@/lib/transactionNature";
 import { ClearIcon } from "@/components/Icons";
 
-import type { CategoryRecord } from "./page";
+import type { CategoryListItem } from "./page";
 import { deleteCategory, deleteCategoriesBulk } from "./actions";
 
 type NatureFilter = "all" | "EX" | "IN" | "TF" | "DE";
 
 type CategoriesViewProps = {
-  categories: CategoryRecord[];
+  categories: CategoryListItem[];
   errorMessage?: string;
 };
 
@@ -67,8 +67,8 @@ const naturePalette: Record<NatureFilter, { active: string; inactive: string }> 
   },
 };
 
-const resolveNature = (category: CategoryRecord) => {
-  const raw = category.transaction_nature ?? category.categories?.transaction_nature ?? undefined;
+const resolveNature = (category: CategoryListItem) => {
+  const raw = category.transaction_nature ?? undefined;
   return normalizeTransactionNature(raw ?? null) ?? undefined;
 };
 
@@ -161,7 +161,7 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
   }, []);
 
   const handleDelete = useCallback(
-    async (record: CategoryRecord) => {
+    async (record: CategoryListItem) => {
       const shouldDelete = confirm(t("categories.actions.deleteConfirm"));
       if (!shouldDelete) {
         return;
@@ -171,10 +171,7 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
       setDeletingId(record.id);
 
       try {
-        const result = await deleteCategory({
-          categoryId: record.categoryId,
-          subcategoryId: record.subcategoryId ?? undefined,
-        });
+        const result = await deleteCategory({ categoryId: record.id });
 
         if (!result.success) {
           setActionError(result.message || t("categories.actions.deleteError"));
@@ -212,10 +209,7 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
     setIsBulkDeleting(true);
 
     try {
-      const payload = selectedRecords.map((record) => ({
-        categoryId: record.categoryId,
-        subcategoryId: record.subcategoryId ?? undefined,
-      }));
+      const payload = selectedRecords.map((record) => ({ categoryId: record.id }));
       const result = await deleteCategoriesBulk(payload);
       if (!result.success) {
         setActionError(result.message || t("categories.actions.deleteAllError"));
@@ -244,7 +238,7 @@ export default function CategoriesView({ categories, errorMessage }: CategoriesV
   }, [t]);
 
   const resolveNatureLabel = useCallback(
-    (category: CategoryRecord) => {
+    (category: CategoryListItem) => {
       const nature = resolveNature(category);
       if (!nature) {
         return natureLabels.all;

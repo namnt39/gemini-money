@@ -27,10 +27,11 @@ type TransactionQueryRow = {
   to_account_id: string | null;
   person_id: string | null;
   person?: { id: string | null; name: string | null; image_url: string | null } | null;
-  subcategories?: {
+  categories?: {
     id: string;
     name: string | null;
-    categories?: { name: string | null; transaction_nature?: string | null }[] | null;
+    image_url: string | null;
+    transaction_nature?: string | null;
   } | null;
 };
 
@@ -126,10 +127,8 @@ const computePercentAmount = (amount?: number | null, percent?: number | null) =
 };
 
 const mapRowToTransaction = (row: TransactionQueryRow): TransactionListItem => {
-  const subcategory = row.subcategories;
-  const rawCategories = subcategory?.categories;
-  const parentCategory = Array.isArray(rawCategories) ? rawCategories[0] : rawCategories ?? null;
-  const transactionNature = normalizeTransactionNature(parentCategory?.transaction_nature ?? null) ?? null;
+  const category = row.categories;
+  const transactionNature = normalizeTransactionNature(category?.transaction_nature ?? null) ?? null;
 
   return {
     id: row.id,
@@ -148,8 +147,8 @@ const mapRowToTransaction = (row: TransactionQueryRow): TransactionListItem => {
     fromAccount: null,
     toAccount: null,
     person: row.person ?? null,
-    categoryName: parentCategory?.name ?? null,
-    subcategoryName: subcategory?.name ?? null,
+    categoryName: category?.name ?? null,
+    categoryId: category?.id ?? null,
     transactionNature,
   };
 };
@@ -242,14 +241,13 @@ async function fetchPeopleData(
         from_account_id,
         to_account_id,
         person_id,
+        category_id,
         person:people!person_id ( id, name, image_url ),
-        subcategories (
+        categories:categories!category_id (
           id,
           name,
-          categories (
-            name,
-            transaction_nature
-          )
+          image_url,
+          transaction_nature
         )
       `
     )
@@ -267,7 +265,7 @@ async function fetchPeopleData(
     const code = natureCodeMap[filters.nature];
     const candidates = getDatabaseNatureCandidates(code);
     if (candidates.length > 0) {
-      query = query.in("subcategories.categories.transaction_nature", candidates);
+      query = query.in("categories.transaction_nature", candidates);
     }
     if (filters.nature === "transfer") {
       query = query.not("from_account_id", "is", null).not("to_account_id", "is", null);
@@ -285,8 +283,7 @@ async function fetchPeopleData(
     query = query.or(
       [
         `notes.ilike.${likePattern}`,
-        `subcategories.name.ilike.${likePattern}`,
-        `subcategories.categories.name.ilike.${likePattern}`,
+        `categories.name.ilike.${likePattern}`,
         `person.name.ilike.${likePattern}`,
       ].join(",")
     );
