@@ -279,7 +279,25 @@ export async function loadTransactionFormData(): Promise<FormDataResult> {
   const usingMockSubcategories = normalizedSubcategories.length === 0;
 
   if (usingMockSubcategories) {
-    normalizedSubcategories = [];
+    const { subcategories: fallbackSubcategories } = getMockTransactionFormData();
+    normalizedSubcategories = fallbackSubcategories.map((subcategory) =>
+      mapSubcategoryRecord({
+        id: subcategory.id,
+        name: subcategory.name,
+        image_url: subcategory.image_url,
+        transaction_nature: subcategory.transaction_nature,
+        is_shop: subcategory.is_shop ?? false,
+        categories: subcategory.categories,
+      })
+    );
+
+    const includesTransfer = normalizedSubcategories.some(
+      (subcategory) => normalizeTransactionNature(subcategory.transaction_nature ?? null) === "TF"
+    );
+
+    if (!includesTransfer) {
+      normalizedSubcategories = [...normalizedSubcategories, DEFAULT_TRANSFER_CATEGORY];
+    }
   }
 
   const typedAccounts = (accounts as Account[] | null) || [];
