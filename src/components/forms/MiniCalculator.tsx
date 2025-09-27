@@ -225,12 +225,12 @@ export default function MiniCalculator({
       leave="transition ease-in duration-75"
       leaveFrom="transform opacity-100 scale-100"
       leaveTo="transform opacity-0 scale-95"
-      className="absolute z-20 mt-2 w-72 bg-white rounded-lg shadow-2xl border p-2"
+      className="absolute right-0 top-full z-30 mt-2 w-72 rounded-xl border border-gray-200 bg-white p-3 shadow-2xl"
     >
       {/* Display */}
-      <div className="bg-gray-100 p-2 rounded-md mb-2">
-        <div className="text-xs text-gray-500 h-4 truncate">{history}</div>
-        <div className="text-2xl font-mono text-right truncate">
+      <div className="mb-2 rounded-md bg-gray-100 p-2">
+        <div className="h-4 truncate text-xs text-gray-500">{history}</div>
+        <div className="truncate text-2xl font-mono text-right">
           {formattedDisplay || "0"}
         </div>
       </div>
@@ -340,11 +340,12 @@ export default function MiniCalculator({
       </div>
 
       <button
+        type="button"
         onClick={() => {
           onApply(fmt(display));
           onClose();
         }}
-        className="w-full mt-2 p-2 bg-green-500 text-white rounded-lg"
+        className="mt-3 w-full rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600"
       >
         Add to Amount
       </button>
