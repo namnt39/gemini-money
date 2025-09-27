@@ -2,6 +2,26 @@ export type Locale = "en" | "vi";
 
 export const DEFAULT_LOCALE: Locale = "en";
 
+const DEFAULT_ENV_LOCALE: Locale = "vi";
+
+function normalizeLocale(value: string | null | undefined): Locale | null {
+  if (!value) {
+    return null;
+  }
+  const normalized = value.toLowerCase();
+  if (normalized === "vi" || normalized === "en") {
+    return normalized;
+  }
+  return null;
+}
+
+export function getActiveLocale(): Locale {
+  const envLocale =
+    normalizeLocale(process.env.NEXT_PUBLIC_LOCALE) ??
+    normalizeLocale(process.env.LOCALE);
+  return envLocale ?? DEFAULT_ENV_LOCALE;
+}
+
 const resources = {
   en: {
     common: {
@@ -24,6 +44,8 @@ const resources = {
       actions: "Actions",
       edit: "Edit",
       delete: "Delete",
+      view: "View",
+      details: "Details",
       requiredIndicator: "*",
       toggleSidebar: "Toggle navigation",
       previous: "Previous",
@@ -116,10 +138,23 @@ const resources = {
         transfer: "Transfers",
       },
       filters: {
+        search: "Search transactions",
+        timeRange: "Time range",
+        quickRange: "Quick range",
+        dateFrom: "From",
+        dateTo: "To",
+        status: "Status",
+        category: "Category",
+        account: "Account",
         year: "Year",
         month: "Month",
         quarter: "Quarter",
-        account: "Account",
+        quickRanges: {
+          seven: "Last 7 days",
+          thirty: "Last 30 days",
+          ninety: "Last 90 days",
+        },
+        clearAll: "Clear all",
         tagLabel: "Tag",
         debtCycleLabel: "Debt cycle",
         debtRepayLabel: "Repayment tag",
@@ -148,6 +183,27 @@ const resources = {
         personFilter: "Borrower",
         unknownPerson: "Unknown",
       },
+      nature: {
+        all: "All",
+        income: "Income",
+        expense: "Expense",
+        transfer: "Transfer",
+        debt: "Debt",
+      },
+      form: {
+        amount: "Amount",
+        date: "Date",
+        fromAccount: "From Account",
+        toAccount: "To Account",
+        category: "Category",
+        notes: "Notes",
+        shop: "Shop",
+        save: "Save Transaction",
+        back: "Back",
+        cashbackPercent: "Cashback %",
+        cashbackAmount: "Cashback amount",
+        today: "Today",
+      },
       emptyState: "No transactions found.",
       loadingMessage: "Loading transactions...",
       pagination: {
@@ -171,12 +227,20 @@ const resources = {
         selectedTotals: "Selected totals",
       },
       table: {
+        name: "Name / Business",
+        date: "Date",
+        amount: "Amount",
+        status: "Status / Nature",
+        action: "Action",
         customize: "Customize columns",
         doneCustomizing: "Done customizing",
         resetLayout: "Reset layout",
         customizeHint:
           "Drag headers to reorder columns or use the handle to resize. Use Reset to restore the default layout.",
         resetConfirm: "Restore the default column layout?",
+      },
+      empty: {
+        noData: "No transactions found. Try adjusting your filters.",
       },
     },
     people: {
@@ -401,6 +465,8 @@ const resources = {
       actions: "Thao tác",
       edit: "Chỉnh sửa",
       delete: "Xóa",
+      view: "Xem",
+      details: "Chi tiết",
       requiredIndicator: "*",
       toggleSidebar: "Đóng/mở menu",
       previous: "Trước",
@@ -493,10 +559,23 @@ const resources = {
         transfer: "Chuyển khoản",
       },
       filters: {
+        search: "Tìm kiếm giao dịch",
+        timeRange: "Khoảng thời gian",
+        quickRange: "Khoảng nhanh",
+        dateFrom: "Từ ngày",
+        dateTo: "Đến ngày",
+        status: "Trạng thái",
+        category: "Danh mục",
+        account: "Tài khoản",
         year: "Năm",
         month: "Tháng",
         quarter: "Quý",
-        account: "Tài khoản",
+        quickRanges: {
+          seven: "7 ngày gần đây",
+          thirty: "30 ngày gần đây",
+          ninety: "90 ngày gần đây",
+        },
+        clearAll: "Xóa bộ lọc",
         tagLabel: "Tag",
         debtCycleLabel: "Kỳ công nợ",
         debtRepayLabel: "Tag thu nợ",
@@ -525,6 +604,27 @@ const resources = {
         personFilter: "Người mượn",
         unknownPerson: "Chưa rõ",
       },
+      nature: {
+        all: "Tất cả",
+        income: "Thu nhập",
+        expense: "Chi tiêu",
+        transfer: "Chuyển khoản",
+        debt: "Công nợ",
+      },
+      form: {
+        amount: "Số tiền",
+        date: "Ngày",
+        fromAccount: "Tài khoản chi",
+        toAccount: "Tài khoản nhận",
+        category: "Danh mục",
+        notes: "Ghi chú",
+        shop: "Cửa hàng",
+        save: "Lưu giao dịch",
+        back: "Quay lại",
+        cashbackPercent: "% hoàn tiền",
+        cashbackAmount: "Số tiền hoàn",
+        today: "Hôm nay",
+      },
       emptyState: "Chưa có giao dịch nào.",
       loadingMessage: "Đang tải giao dịch...",
       pagination: {
@@ -548,12 +648,20 @@ const resources = {
         selectedTotals: "Tổng các mục đã chọn",
       },
       table: {
+        name: "Danh mục / Cửa hàng",
+        date: "Ngày",
+        amount: "Số tiền",
+        status: "Trạng thái / Loại",
+        action: "Hành động",
         customize: "Tùy chỉnh cột",
         doneCustomizing: "Hoàn tất tùy chỉnh",
         resetLayout: "Đặt lại bố cục",
         customizeHint:
           "Kéo tiêu đề để sắp xếp lại hoặc kéo chốt để đổi độ rộng. Dùng Đặt lại để trở về mặc định.",
         resetConfirm: "Khôi phục bố cục cột mặc định?",
+      },
+      empty: {
+        noData: "Không tìm thấy giao dịch. Hãy thử đổi bộ lọc.",
       },
     },
     people: {
@@ -780,7 +888,7 @@ function resolvePath(locale: Locale, path: string) {
   return current;
 }
 
-type TranslationValues = Record<string, string | number | boolean | null | undefined>;
+export type TranslationValues = Record<string, string | number | boolean | null | undefined>;
 
 function interpolate(template: string, values?: TranslationValues) {
   if (!values) {
@@ -811,8 +919,13 @@ export function translate(
   return path;
 }
 
-export function createTranslator(locale: Locale = DEFAULT_LOCALE) {
-  return (path: TranslationKey, values?: TranslationValues) => translate(path, locale, values);
+export function createTranslator(locale?: Locale) {
+  const effectiveLocale = locale ?? getActiveLocale();
+  return (path: TranslationKey, values?: TranslationValues) => translate(path, effectiveLocale, values);
+}
+
+export function t(path: TranslationKey, values?: TranslationValues) {
+  return translate(path, getActiveLocale(), values);
 }
 
 export function isTranslationKey(path: string): path is TranslationKey {
