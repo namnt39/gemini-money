@@ -17,6 +17,7 @@ type CustomSelectProps = {
   defaultTab?: string;
   onAddNew?: () => void;
   addNewLabel?: string;
+  disabled?: boolean;
 };
 
 const SelectorIcon = () => <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L10 5.414 7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zm-3.707 9.293a1 1 0 011.414 0L10 14.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>;
@@ -30,14 +31,14 @@ const normalizeText = (value: string) =>
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase();
 
-export default function CustomSelect({ label, value, onChange, options, required = false, defaultTab, onAddNew, addNewLabel }: CustomSelectProps) {
+export default function CustomSelect({ label, value, onChange, options, required = false, defaultTab, onAddNew, addNewLabel, disabled = false }: CustomSelectProps) {
   const t = createTranslator();
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
   const appliedDefaultRef = useRef(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
-  const hasAddNew = typeof onAddNew === 'function';
+  const hasAddNew = typeof onAddNew === 'function' && !disabled;
 
   const accountTypes = useMemo(() => {
     const types = new Set<string>();
@@ -75,6 +76,9 @@ export default function CustomSelect({ label, value, onChange, options, required
   const selectedOption = options.find(opt => opt.id === value);
 
   const handleSelect = (selectedValue: string) => {
+    if (disabled) {
+      return;
+    }
     if (hasAddNew && selectedValue === ADD_NEW_VALUE) {
       onAddNew?.();
       return;
@@ -84,15 +88,19 @@ export default function CustomSelect({ label, value, onChange, options, required
 
   return (
     <div className="space-y-1">
-      <Listbox value={value} onChange={handleSelect}>
+      <Listbox value={value} onChange={handleSelect} disabled={disabled}>
         <Listbox.Label className="block text-sm font-medium text-gray-700">
           {label}
           {required && <span className="ml-1 text-red-500">{t("common.requiredIndicator")}</span>}
         </Listbox.Label>
         <div className="relative mt-1">
           <Listbox.Button
-            className="relative w-full cursor-default rounded-md border border-gray-300 bg-white py-3 pl-3 pr-10 text-left text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className={`relative w-full rounded-md border border-gray-300 py-3 pl-3 pr-10 text-left text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+              disabled ? 'cursor-not-allowed bg-gray-100 text-gray-500' : 'cursor-default bg-white'
+            }`}
+            disabled={disabled}
             onClick={() => {
+              if (disabled) return;
               setTimeout(() => {
                 searchInputRef.current?.focus();
               }, 0);
@@ -108,11 +116,14 @@ export default function CustomSelect({ label, value, onChange, options, required
                   className="flex-shrink-0 h-6 w-6"
                 />
               )}
-              <span className={`ml-3 block truncate ${!selectedOption ? 'text-gray-500' : ''}`}>{selectedOption ? selectedOption.name : `Select ${label.toLowerCase()}`}</span>
+              <span className={`ml-3 block truncate ${!selectedOption ? 'text-gray-500' : ''}`}>
+                {selectedOption ? selectedOption.name : `Select ${label.toLowerCase()}`}
+              </span>
             </span>
             <span className="ml-3 absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none"><SelectorIcon /></span>
           </Listbox.Button>
 
+          {disabled ? null : (
           <Transition
             as={Fragment}
             leave="transition ease-in duration-100"
@@ -219,6 +230,7 @@ export default function CustomSelect({ label, value, onChange, options, required
               )}
             </Listbox.Options>
           </Transition>
+          )}
         </div>
       </Listbox>
     </div>
