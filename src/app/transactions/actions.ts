@@ -45,6 +45,8 @@ type TransactionData = {
   cashback: CashbackData | null; // include cashback information
   debtMode?: "collect" | "lend";
   shopId?: string | null;
+  debtTag?: string | null;
+  debtCycleTag?: string | null;
 };
 
 type UpdateTransactionInput = TransactionData & { id: string };
@@ -165,6 +167,8 @@ async function persistTransaction(data: TransactionData, options: { id?: string 
     subcategory_id: null,
     person_id: normalizedPersonId,
     shop_id: normalizedShopId,
+    debt_tag: null,
+    debt_cycle_tag: null,
   };
 
   if (data.activeTab === "expense") {
@@ -201,11 +205,13 @@ async function persistTransaction(data: TransactionData, options: { id?: string 
         return { success: false, message: "Please choose a destination account." };
       }
       transactionToPersist.to_account_id = normalizedToAccountId;
+      transactionToPersist.debt_cycle_tag = data.debtCycleTag?.trim() || null;
     } else {
       if (!normalizedFromAccountId) {
         return { success: false, message: "Please choose a source account." };
       }
       transactionToPersist.from_account_id = normalizedFromAccountId;
+      transactionToPersist.debt_tag = data.debtTag?.trim() || null;
     }
 
     if (normalizedSubcategoryId) {
