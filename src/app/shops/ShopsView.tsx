@@ -21,13 +21,9 @@ type TypeFilter = "all" | string;
 type ShopRecord = Shop & { notes?: string | null };
 
 const formatCreatedAt = (value: string | null | undefined) => {
-  if (!value) {
-    return "-";
-  }
+  if (!value) return "-";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
+  if (Number.isNaN(date.getTime())) return "-";
   return new Intl.DateTimeFormat("en-US", {
     year: "numeric",
     month: "short",
@@ -35,415 +31,247 @@ const formatCreatedAt = (value: string | null | undefined) => {
   }).format(date);
 };
 
-const normalizeType = (value: string | null | undefined) => {
-  if (!value) {
-    return "other";
-  }
-  return value.toLowerCase();
-};
-
-const getInitials = (value: string) => {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
-  }
-  return trimmed
-    .split(/\s+/)
-    .map((word) => word.charAt(0))
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-};
-
 export default function ShopsView({ shops, errorMessage }: ShopsViewProps) {
-  const t = createTranslator();
-  const { navigate } = useAppShell();
-  const [shopRecords, setShopRecords] = useState<ShopRecord[]>(() => shops.map((shop) => ({ ...shop })));
-  const [selectedShopId, setSelectedShopId] = useState<string | null>(shops[0]?.id ?? null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
-  const [isAddModalOpen, setAddModalOpen] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const { navigate, locale } = useAppShell();
+  const t = useMemo(() => createTranslator(locale), [locale]);
 
+  const [records, setRecords] = useState<ShopRecord[]>(() => shops ?? []);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<TypeFilter>("all");
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [isAddModalOpen, setAddModalOpen] = useState(false);
+
+  const searchRef = useRef<HTMLInputElement | null>(null);
+
+  // merge props.shops -> local cache (avoid duplicates)
   useEffect(() => {
-    setShopRecords(shops.map((shop) => ({ ...shop })));
-    setSelectedShopId((prev) => {
-      if (prev && shops.some((shop) => shop.id === prev)) {
-        return prev;
+    setRecords((prev) => {
+      const seen = new Set(prev.map((s) => s.id));
+      const merged = [...prev];
+      for (const s of shops) {
+        if (!seen.has(s.id)) merged.push(s);
       }
-      return shops[0]?.id ?? null;
+      return merged;
     });
   }, [shops]);
 
-  const availableTypes = useMemo(() => {
-    const unique = new Set<string>();
-    shopRecords.forEach((shop) => {
-      if (shop.type) {
-        unique.add(normalizeType(shop.type));
-      }
-    });
-    return Array.from(unique).sort();
-  }, [shopRecords]);
+  const typeOptions = useMemo(() => {
+    const all = new Set<string>();
+    for (const s of records) if (s.type) all.add(String(s.type));
+    return [{ value: "all", label: t("shops.filters.allTypes") }].concat(
+      Array.from(all)
+        .sort()
+        .map((x) => ({
+          value: x,
+          label: isTranslationKey(x) ? t(x as any) : x,
+        }))
+    );
+  }, [records, t]);
 
-  const filteredShops = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
-    return shopRecords.filter((shop) => {
-      const matchesType =
-        typeFilter === "all" || normalizeType(shop.type) === typeFilter || (typeFilter === "other" && !shop.type);
-      if (!matchesType) {
-        return false;
-      }
-      if (!normalizedSearch) {
-        return true;
-      }
-      return shop.name.toLowerCase().includes(normalizedSearch);
+  const normalized = (s: string) => s.normalize("NFKC").toLowerCase().trim();
+
+  const filtered = useMemo(() => {
+    const term = normalized(search);
+    return records.filter((s) => {
+      if (filter !== "all" && String(s.type ?? "") !== filter) return false;
+      if (!term) return true;
+      const hay = `${s.name ?? ""} ${s.notes ?? ""} ${s.type ?? ""}`.toLowerCase();
+      return hay.includes(term);
     });
-  }, [shopRecords, searchTerm, typeFilter]);
+  }, [records, search, filter]);
 
   useEffect(() => {
-    if (filteredShops.length === 0) {
-      setSelectedShopId(null);
+    if (filtered.length === 0) {
+      setActiveId(null);
       return;
     }
-    if (!selectedShopId || !filteredShops.some((shop) => shop.id === selectedShopId)) {
-      setSelectedShopId(filteredShops[0].id);
+    if (!activeId || !filtered.some((s) => s.id === activeId)) {
+      setActiveId(filtered[0].id);
     }
-  }, [filteredShops, selectedShopId]);
+  }, [filtered, activeId]);
 
   const handleSearchClear = useCallback(() => {
-    setSearchTerm("");
-    searchInputRef.current?.focus();
+    setSearch("");
+    searchRef.current?.focus();
   }, []);
 
-  const handleOpenAddModal = useCallback(() => {
-    setAddModalOpen(true);
-  }, []);
+  const handleOpenAddModal = useCallback(() => setAddModalOpen(true), []);
+  const handleCloseAddModal = useCallback(() => setAddModalOpen(false), []);
 
-  const handleCloseAddModal = useCallback(() => {
-    setAddModalOpen(false);
-  }, []);
+  const handleCreateShop = useCallback(
+    (values: { name: string; type?: string; notes?: string | null }) => {
+      const id =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `shop-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-  const selectedShop = useMemo(
-    () => filteredShops.find((shop) => shop.id === selectedShopId) ?? null,
-    [filteredShops, selectedShopId]
+      const record: ShopRecord = {
+        id,
+        name: values.name,
+        type: values.type ? values.type.toLowerCase() : null,
+        image_url: null,
+        notes: values.notes ?? null,
+        created_at: new Date().toISOString(),
+      } as any;
+
+      setRecords((prev) => [record, ...prev]);
+      setActiveId(id);
+      setAddModalOpen(false);
+    },
+    []
   );
-
-  const summaryLabel = useMemo(() => t("shops.summary.count", { count: filteredShops.length }), [filteredShops.length, t]);
-
-  const handleDeleteShop = useCallback((shop: ShopRecord) => {
-    const shouldDelete = confirm(`Delete ${shop.name}?`);
-    if (!shouldDelete) {
-      return;
-    }
-    setShopRecords((prev) => prev.filter((item) => item.id !== shop.id));
-  }, []);
-
-  const handleEditShop = useCallback((shop: ShopRecord) => {
-    alert(`Editing ${shop.name} is coming soon.`);
-  }, []);
 
   const handleNavigateToTransactions = useCallback(() => {
     navigate("/transactions");
     setAddModalOpen(false);
   }, [navigate]);
 
-  const generateShopId = useCallback(() => {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID();
-    }
-    return `shop-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  }, []);
-
-  const handleCreateShop = useCallback(
-    (values: { name: string; type?: string; notes?: string | null }) => {
-      const id = generateShopId();
-      const record: ShopRecord = {
-        id,
-        name: values.name,
-        type: values.type ? values.type.toLowerCase() : null,
-        image_url: null,
-        created_at: new Date().toISOString(),
-        notes: values.notes ?? null,
-      };
-      setShopRecords((prev) => [record, ...prev]);
-      setSelectedShopId(id);
-      setAddModalOpen(false);
-      setSearchTerm("");
-      setTypeFilter("all");
-    },
-    [generateShopId]
+  const active = useMemo(
+    () => filtered.find((s) => s.id === activeId) ?? null,
+    [filtered, activeId]
   );
-
-  const handleViewShop = useCallback((shop: ShopRecord) => {
-    setSelectedShopId(shop.id);
-  }, []);
-
-  const formatTypeLabel = useCallback(
-    (type: string) => {
-      const key = `shops.types.${type}`;
-      if (isTranslationKey(key)) {
-        const translation = t(key);
-        if (translation !== key) {
-          return translation;
-        }
-      }
-      return type.charAt(0).toUpperCase() + type.slice(1);
-    },
-    [t]
-  );
-
-  const selectedShopDetails = useMemo(() => {
-    if (!selectedShop) {
-      return null;
-    }
-    const detailType = formatTypeLabel(normalizeType(selectedShop.type));
-    return {
-      detailType,
-      initials: getInitials(selectedShop.name),
-    };
-  }, [formatTypeLabel, selectedShop]);
-
-  const typeOptions = useMemo(() => {
-    const base: { label: string; value: TypeFilter }[] = [
-      { value: "all", label: t("shops.filters.allTypes") },
-    ];
-    const mapped = availableTypes.map((type) => {
-      return { value: type, label: formatTypeLabel(type) };
-    });
-    return [...base, ...mapped];
-  }, [availableTypes, formatTypeLabel, t]);
-
-  const addShopLabel = useMemo(() => {
-    const label = t("shops.actions.addNew");
-    return label === "shops.actions.addNew" ? "Add new shop" : label;
-  }, [t]);
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-        {errorMessage ? (
-          <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{errorMessage}</div>
-        ) : null}
-        <div className="flex flex-col gap-4 border-b border-gray-200 bg-gray-50 px-4 py-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="w-full max-w-lg">
-              <div className="relative">
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  role="searchbox"
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder={t("shops.filters.searchPlaceholder")}
-                  aria-label={t("shops.filters.searchPlaceholder")}
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-16 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-                {searchTerm ? (
-                  <div className="absolute inset-y-1.5 right-2 flex items-center">
-                    <Tooltip label={t("common.clear")}>
-                      <button
-                        type="button"
-                        onClick={handleSearchClear}
-                        className="inline-flex items-center justify-center rounded-md border border-transparent p-2 text-indigo-600 transition hover:border-indigo-100 hover:bg-indigo-50"
-                        aria-label={t("common.clear")}
-                      >
-                        <ClearIcon />
-                      </button>
-                    </Tooltip>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
-              <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <span>{t("shops.filters.typeLabel")}</span>
-                <select
-                  id="shop-type-filter"
-                  value={typeFilter}
-                  onChange={(event) => setTypeFilter(event.target.value)}
-                  className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                >
-                  {typeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button
-                type="button"
-                onClick={handleOpenAddModal}
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-              >
-                {addShopLabel}
-              </button>
-            </div>
-          </div>
+    <div className="flex h-full flex-col gap-4">
+      {/* Header */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col">
+          <h1 className="text-lg font-semibold text-gray-900">
+            {t("shops.title")}
+          </h1>
+          <p className="text-sm text-gray-600">
+            {t("shops.subtitle", { count: records.length })}
+          </p>
+          {errorMessage ? (
+            <p className="mt-1 text-sm text-red-600">{errorMessage}</p>
+          ) : null}
         </div>
-        <div className="flex flex-col gap-6 px-4 py-4 lg:flex-row">
-          <aside className="flex w-full flex-col gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 lg:w-80">
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Shop details</h3>
-            </div>
-            {selectedShop && selectedShopDetails ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-14 w-14 overflow-hidden rounded-full border border-gray-200 bg-white">
-                    {selectedShop.image_url ? (
-                      <RemoteImage
-                        src={selectedShop.image_url}
-                        alt={selectedShop.name}
-                        width={56}
-                        height={56}
-                        className="h-14 w-14 object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-gray-500">
-                        {selectedShopDetails.initials || "?"}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-base font-semibold text-gray-900">{selectedShop.name}</p>
-                    <p className="text-xs uppercase tracking-wide text-gray-500">{selectedShopDetails.detailType}</p>
-                  </div>
-                </div>
-                <dl className="space-y-2 text-xs text-gray-600">
-                  <div className="flex items-center justify-between">
-                    <dt className="font-medium text-gray-500">{t("shops.fields.type")}</dt>
-                    <dd>{selectedShopDetails.detailType}</dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt className="font-medium text-gray-500">{t("shops.fields.created")}</dt>
-                    <dd>{formatCreatedAt(selectedShop.created_at ?? null)}</dd>
-                  </div>
-                  {selectedShop.notes ? (
-                    <div className="flex flex-col gap-1">
-                      <dt className="font-medium text-gray-500">Notes</dt>
-                      <dd className="whitespace-pre-wrap text-gray-700">{selectedShop.notes}</dd>
-                    </div>
-                  ) : null}
-                </dl>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleEditShop(selectedShop)}
-                    className="inline-flex items-center justify-center rounded-md border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-50"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteShop(selectedShop)}
-                    className="inline-flex items-center justify-center rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
-                  >
-                    Delete
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleNavigateToTransactions}
-                    className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
-                  >
-                    Transactions
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">Select a shop to view details.</p>
-            )}
-          </aside>
-          <div className="flex-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 text-sm text-gray-600">
-              <span>{summaryLabel}</span>
-            </div>
-            <div className="p-4">
-              {filteredShops.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-500">{t("shops.empty")}</p>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                  {filteredShops.map((shop) => {
-                    const typeKey = normalizeType(shop.type);
-                    const displayType = formatTypeLabel(typeKey);
-                    const initials = getInitials(shop.name);
-                    const isActive = shop.id === selectedShopId;
-                    return (
-                      <div
-                        key={shop.id}
-                        className={`flex flex-col gap-4 rounded-lg border px-4 py-4 shadow-sm transition ${
-                          isActive
-                            ? "border-indigo-300 bg-indigo-50/60"
-                            : "border-gray-200 bg-white hover:border-indigo-200 hover:shadow"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`h-12 w-12 overflow-hidden rounded-full border ${
-                                isActive ? "border-indigo-200" : "border-gray-200"
-                              } bg-gray-100`}
-                            >
-                              {shop.image_url ? (
-                                <RemoteImage
-                                  src={shop.image_url}
-                                  alt={shop.name}
-                                  width={48}
-                                  height={48}
-                                  className="h-12 w-12 object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-gray-500">
-                                  {initials}
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <p className="text-sm font-semibold text-gray-900">{shop.name}</p>
-                              <p className="text-xs uppercase tracking-wide text-gray-500">{displayType}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleViewShop(shop)}
-                              className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-indigo-50 hover:text-indigo-700"
-                            >
-                              View
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleEditShop(shop)}
-                              className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-indigo-50 hover:text-indigo-700"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteShop(shop)}
-                              className="inline-flex items-center justify-center rounded-md border border-red-200 bg-white px-2 py-1 text-[11px] font-medium text-red-600 transition hover:bg-red-50"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                        <dl className="space-y-1 text-xs text-gray-600">
-                          <div className="flex items-center justify-between">
-                            <dt className="font-medium text-gray-500">{t("shops.fields.type")}</dt>
-                            <dd>{displayType}</dd>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <dt className="font-medium text-gray-500">{t("shops.fields.created")}</dt>
-                            <dd>{formatCreatedAt(shop.created_at ?? null)}</dd>
-                          </div>
-                        </dl>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+          <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <label htmlFor="shop-type-filter">{t("shops.filters.typeLabel")}</label>
+            <select
+              id="shop-type-filter"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            >
+              {typeOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </div>
+
+          <button
+            type="button"
+            onClick={handleOpenAddModal}
+            className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+          >
+            {t("shops.actions.add")}
+          </button>
         </div>
       </div>
+
+      {/* Body */}
+      <div className="grid flex-1 grid-rows-1 gap-4 md:grid-cols-12">
+        {/* List */}
+        <div className="flex flex-col gap-3 md:col-span-5">
+          <div className="relative">
+            <input
+              ref={searchRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              placeholder={t("shops.search.placeholder")}
+            />
+            {search ? (
+              <button
+                type="button"
+                onClick={handleSearchClear}
+                className="absolute right-1 top-1 inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-gray-100"
+              >
+                <ClearIcon className="h-4 w-4 text-gray-500" />
+              </button>
+            ) : null}
+          </div>
+
+          <ul className="divide-y divide-gray-200 overflow-hidden rounded-md border border-gray-200">
+            {filtered.map((s) => {
+              const isActive = s.id === activeId;
+              return (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveId(s.id)}
+                    className={[
+                      "flex w-full items-center gap-3 px-3 py-2 text-left transition",
+                      isActive ? "bg-indigo-50" : "hover:bg-gray-50",
+                    ].join(" ")}
+                  >
+                    <RemoteImage
+                      src={s.image_url ?? ""}
+                      alt={s.name}
+                      className="h-8 w-8 rounded-md object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-gray-900">
+                        {s.name}
+                      </p>
+                      <p className="truncate text-xs text-gray-500">
+                        {s.type || "-"}
+                      </p>
+                    </div>
+                    <Tooltip content={formatCreatedAt(s.created_at ?? null)}>
+                      <span className="whitespace-nowrap text-xs text-gray-500">
+                        {formatCreatedAt(s.created_at ?? null)}
+                      </span>
+                    </Tooltip>
+                  </button>
+                </li>
+              );
+            })}
+            {filtered.length === 0 ? (
+              <li className="p-6 text-center text-sm text-gray-500">
+                {t("shops.empty")}
+              </li>
+            ) : null}
+          </ul>
+        </div>
+
+        {/* Detail */}
+        <div className="md:col-span-7">
+          {active ? (
+            <div className="rounded-md border border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <RemoteImage
+                  src={active.image_url ?? ""}
+                  alt={active.name}
+                  className="h-10 w-10 rounded-md object-cover"
+                />
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900">
+                    {active.name}
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    {active.type || "-"}
+                  </p>
+                </div>
+              </div>
+              {active.notes ? (
+                <p className="mt-3 text-sm text-gray-700">{active.notes}</p>
+              ) : null}
+            </div>
+          ) : (
+            <div className="rounded-md border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">
+              {t("shops.noSelection")}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Centralized Add Shop modal */}
       <AddShopModal
         open={isAddModalOpen}
         onClose={handleCloseAddModal}
