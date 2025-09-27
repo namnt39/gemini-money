@@ -1,5 +1,6 @@
 "use client";
 
+import type { FormEvent, JSX } from "react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Account, Subcategory, Person, Shop } from "./formData";
@@ -100,6 +101,30 @@ const TabButton = ({
   </button>
 );
 
+const mapToOptions = (
+  item: {
+    id: string;
+    name: string;
+    image_url?: string | null;
+    type?: string | null;
+    is_group?: boolean | null;
+  }
+) => ({
+  id: item.id,
+  name: item.name,
+  imageUrl: item.image_url || undefined,
+  type:
+    item.type ||
+    (typeof item.is_group === "boolean" ? (item.is_group ? "Group" : "Individual") : undefined),
+});
+
+const generateShopId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `shop-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
 const toDateInputValue = (isoLike: string) => {
   try {
     const d = new Date(isoLike);
@@ -179,6 +204,16 @@ const resolveDebtModeFromTransaction = (record: TransactionListItem | null): Deb
   return rawMode === "collect" ? "collect" : "lend";
 };
 
+const getTransactionNature = (sub: Subcategory): TransactionNatureCode | null => {
+  const direct = normalizeTransactionNature(sub.transaction_nature ?? null);
+  if (direct) return direct;
+  if (!sub.categories) return null;
+  if (Array.isArray(sub.categories)) {
+    return normalizeTransactionNature(sub.categories[0]?.transaction_nature ?? null);
+  }
+  return null;
+};
+
 export default function TransactionForm({
   accounts,
   subcategories,
@@ -192,7 +227,7 @@ export default function TransactionForm({
   mode = "create",
   onClose,
   layout = "page",
-}: TransactionFormProps) {
+}: TransactionFormProps): JSX.Element {
   const t = createTranslator();
   const router = useRouter();
   const { showSuccess, navigate } = useAppShell();
@@ -322,58 +357,22 @@ export default function TransactionForm({
   const debtTagListId = useId();
 
   // Helpers
-  const mapToOptions = useCallback(
-    (item: {
-      id: string;
-      name: string;
-      image_url?: string | null;
-      type?: string | null;
-      is_group?: boolean | null;
-    }) => ({
-      id: item.id,
-      name: item.name,
-      imageUrl: item.image_url || undefined,
-      type:
-        item.type ||
-        (typeof item.is_group === "boolean" ? (item.is_group ? "Group" : "Individual") : undefined),
-    }),
-    []
-  );
-
-  const generateShopId = useCallback(() => {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID();
-    }
-    return `shop-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  }, []);
-
-  const getTransactionNature = useCallback((sub: Subcategory): TransactionNatureCode | null => {
-    const direct = normalizeTransactionNature(sub.transaction_nature ?? null);
-    if (direct) return direct;
-    if (!sub.categories) return null;
-    if (Array.isArray(sub.categories)) {
-      return normalizeTransactionNature(sub.categories[0]?.transaction_nature ?? null);
-    }
-    return null;
-  }, []);
-
-
   // Options
   const expenseCategories = useMemo(
     () => subcategories.filter((s) => getTransactionNature(s) === "EX").map(mapToOptions),
-    [subcategories, getTransactionNature, mapToOptions]
+    [subcategories]
   );
   const incomeCategories = useMemo(
     () => subcategories.filter((s) => getTransactionNature(s) === "IN").map(mapToOptions),
-    [subcategories, getTransactionNature, mapToOptions]
+    [subcategories]
   );
-  const accountsWithOptions = useMemo(() => accounts.map(mapToOptions), [accounts, mapToOptions]);
+  const accountsWithOptions = useMemo(() => accounts.map(mapToOptions), [accounts]);
   const bankAccountOptions = useMemo(
     () => accounts.filter((a) => a.type?.toLowerCase() === "bank").map(mapToOptions),
-    [accounts, mapToOptions]
+    [accounts]
   );
-  const peopleWithOptions = useMemo(() => people.map(mapToOptions), [people, mapToOptions]);
-  const shopOptions = useMemo(() => shopRecords.map(mapToOptions), [mapToOptions, shopRecords]);
+  const peopleWithOptions = useMemo(() => people.map(mapToOptions), [people]);
+  const shopOptions = useMemo(() => shopRecords.map(mapToOptions), [shopRecords]);
 
   const selectedSubcategory = useMemo(
     () => (subcategoryId ? subcategories.find((s) => s.id === subcategoryId) ?? null : null),
@@ -421,18 +420,14 @@ export default function TransactionForm({
   }, [activeTab, bankAccountOptions, debtMode, accounts, fromAccountId, toAccountId]);
 
   // Created subcategory flow
-  const mapNatureToTabLocal = useCallback((code: TransactionNatureCode | null) => {
-    const m = mapNatureToTab(code);
-    return m ?? "expense";
-  }, []);
   useEffect(() => {
     if (!createdSubcategoryId) return;
     const newly = subcategories.find((s) => s.id === createdSubcategoryId);
     if (!newly) return;
     setSubcategoryId(createdSubcategoryId);
-    const mappedTab = mapNatureToTabLocal(getTransactionNature(newly));
+    const mappedTab = mapNatureToTab(getTransactionNature(newly)) ?? "expense";
     if (mappedTab && mappedTab !== activeTab) setActiveTab(mappedTab);
-  }, [createdSubcategoryId, subcategories, mapNatureToTabLocal, getTransactionNature, activeTab]);
+  }, [createdSubcategoryId, subcategories, activeTab]);
 
   // Cashback visibility
   useEffect(() => {
@@ -652,7 +647,7 @@ export default function TransactionForm({
       setShopModalOpen(false);
       showSuccess(t("shops.actions.addNew"));
     },
-    [generateShopId, showSuccess, t]
+    [showSuccess, t]
   );
 
   const handleCloseShopModal = useCallback(() => setShopModalOpen(false), []);
@@ -681,7 +676,7 @@ export default function TransactionForm({
     router.push(`/categories/add?${params.toString()}`);
   }, [activeTab, returnPath, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (activeTab === "transfer" && fromAccountId && fromAccountId === toAccountId) {
       alert(t("transactionForm.errors.sameTransferAccount"));
