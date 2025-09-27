@@ -8,6 +8,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CustomSelect, { Option } from "@/components/forms/CustomSelect";
 import Tooltip from "@/components/Tooltip";
 import RemoteImage from "@/components/RemoteImage";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { createTranslator } from "@/lib/i18n";
 import { numberToVietnameseWords } from "@/lib/numberToVietnameseWords";
 import { formatDateTag, getDateTagSortValue } from "@/lib/dateTag";
@@ -542,6 +543,7 @@ export default function TransactionsView({
   const [isCustomizingTable, setIsCustomizingTable] = useState(false);
   const [columnOrder, setColumnOrder] = useState<DataColumnId[]>(DEFAULT_COLUMN_ORDER);
   const [columnWidths, setColumnWidths] = useState<Partial<Record<DataColumnId, number>>>(() => ({}));
+  const [showResetLayoutConfirm, setShowResetLayoutConfirm] = useState(false);
   const dragColumnIdRef = useRef<DataColumnId | null>(null);
   const resizeInfoRef = useRef<
     { columnId: DataColumnId; startX: number; startWidth: number; pointerId: number } | null
@@ -1160,13 +1162,18 @@ export default function TransactionsView({
   }, []);
 
   const handleResetLayout = useCallback(() => {
-    const shouldReset = confirm(t("transactions.table.resetConfirm"));
-    if (!shouldReset) {
-      return;
-    }
+    setShowResetLayoutConfirm(true);
+  }, []);
+
+  const handleConfirmResetLayout = useCallback(() => {
     setColumnOrder([...DEFAULT_COLUMN_ORDER]);
     setColumnWidths(() => ({}));
-  }, [t]);
+    setShowResetLayoutConfirm(false);
+  }, []);
+
+  const handleCancelResetLayout = useCallback(() => {
+    setShowResetLayoutConfirm(false);
+  }, []);
 
   const getColumnWidth = useCallback(
     (column: DataColumn) => {
@@ -1846,7 +1853,7 @@ export default function TransactionsView({
           )}
 
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="min-w-full table-fixed text-sm">
               <thead className="bg-gray-100">
                 <tr className="border-b border-gray-200">
                   <th className="sticky left-0 z-30 border-r border-gray-200 bg-gray-100 px-4 py-3 text-left">
@@ -1867,7 +1874,7 @@ export default function TransactionsView({
                         className={`relative px-4 py-3 text-left font-medium text-gray-700 ${borderClass} ${
                           isCustomizingTable ? "cursor-move select-none" : ""
                         }`}
-                        style={{ width, minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
+                        style={{ width, minWidth: column.minWidth ?? MIN_COLUMN_WIDTH, maxWidth: width }}
                         draggable={isCustomizingTable}
                         onDragStart={(event) => handleDragStart(event, column.id)}
                         onDragOver={handleDragOver}
@@ -1922,7 +1929,7 @@ export default function TransactionsView({
                           <td
                             key={column.id}
                             className={`px-4 py-3 ${alignClass} ${borderClass}`}
-                            style={{ width, minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
+                            style={{ width, minWidth: column.minWidth ?? MIN_COLUMN_WIDTH, maxWidth: width }}
                             onDoubleClick={(event) => event.stopPropagation()}
                           >
                             {column.render(transaction)}
@@ -1952,7 +1959,11 @@ export default function TransactionsView({
                           <td
                             key={column.id}
                             className={`px-4 py-3 ${alignClass} ${borderClass}`}
-                            style={{ width: getColumnWidth(column), minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
+                            style={{
+                              width: getColumnWidth(column),
+                              minWidth: column.minWidth ?? MIN_COLUMN_WIDTH,
+                              maxWidth: getColumnWidth(column),
+                            }}
                           >
                             {column.summary(selectedSummary)}
                           </td>
@@ -1963,7 +1974,11 @@ export default function TransactionsView({
                           <td
                             key={column.id}
                             className={`px-4 py-3 ${borderClass}`}
-                            style={{ width: getColumnWidth(column), minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
+                            style={{
+                              width: getColumnWidth(column),
+                              minWidth: column.minWidth ?? MIN_COLUMN_WIDTH,
+                              maxWidth: getColumnWidth(column),
+                            }}
                           >
                             {t("transactions.summary.selectedTotals")} ({selectedSummary.count})
                           </td>
@@ -1973,7 +1988,11 @@ export default function TransactionsView({
                         <td
                           key={column.id}
                           className={`px-4 py-3 ${borderClass}`}
-                          style={{ width: getColumnWidth(column), minWidth: column.minWidth ?? MIN_COLUMN_WIDTH }}
+                          style={{
+                            width: getColumnWidth(column),
+                            minWidth: column.minWidth ?? MIN_COLUMN_WIDTH,
+                            maxWidth: getColumnWidth(column),
+                          }}
                         />
                       );
                     })}
@@ -2061,6 +2080,15 @@ export default function TransactionsView({
         </div>
       </div>
     ) : null}
+    <ConfirmDialog
+      open={showResetLayoutConfirm}
+      title="Reset column layout?"
+      description="Restoring the default layout will reset the order and widths of every column in the transaction table."
+      cancelLabel="Keep current layout"
+      confirmLabel="Reset layout"
+      onCancel={handleCancelResetLayout}
+      onConfirm={handleConfirmResetLayout}
+    />
   </div>
   );
 }

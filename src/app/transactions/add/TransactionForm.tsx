@@ -7,6 +7,7 @@ import { createTransaction, updateTransaction } from "../actions";
 import AmountInput from "@/components/forms/AmountInput";
 import CustomSelect from "@/components/forms/CustomSelect";
 import CashbackInput from "@/components/forms/CashbackInput";
+import DatePicker from "@/components/forms/DatePicker";
 import { createTranslator } from "@/lib/i18n";
 import { normalizeTransactionNature, type TransactionNatureCode } from "@/lib/transactionNature";
 import { useAppShell } from "@/components/AppShellProvider";
@@ -372,6 +373,17 @@ export default function TransactionForm({
   );
   const peopleWithOptions = useMemo(() => people.map(mapToOptions), [people, mapToOptions]);
   const shopOptions = useMemo(() => shopRecords.map(mapToOptions), [mapToOptions, shopRecords]);
+
+  const availableShopTypes = useMemo(() => {
+    const unique = new Set<string>();
+    shopRecords.forEach((record) => {
+      const typeValue = record.type ?? null;
+      if (typeValue && typeValue.trim()) {
+        unique.add(typeValue.trim());
+      }
+    });
+    return Array.from(unique.values()).sort((a, b) => a.localeCompare(b));
+  }, [shopRecords]);
 
   const selectedSubcategory = useMemo(
     () => (subcategoryId ? subcategories.find((s) => s.id === subcategoryId) ?? null : null),
@@ -757,7 +769,7 @@ export default function TransactionForm({
 
   const contentWrapperClasses =
     layout === "modal"
-      ? "flex-1 min-h-0 overflow-y-auto bg-white p-6 space-y-6"
+      ? "flex-1 min-h-0 overflow-y-auto bg-slate-50 p-6 space-y-6"
       : "space-y-6 bg-white p-6";
 
   const dateTag = useMemo(() => formatDateTag(date), [date]);
@@ -813,22 +825,13 @@ export default function TransactionForm({
         </div>
 
         <div className={contentWrapperClasses}>
-          {/* Amount + Date */}
           <div className="grid gap-6 md:grid-cols-2">
             <AmountInput value={amount} onChange={setAmount} />
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                {t("common.date")}
-              </label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-4 py-3 text-base shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              />
+            <div className="space-y-3">
+              <DatePicker label={t("common.date")} value={date} onChange={setDate} />
               {activeTab !== "debt" && dateTag ? (
-                <div className="mt-2">
-                  <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-indigo-700">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-700">
                     {dateTag}
                   </span>
                 </div>
@@ -959,10 +962,10 @@ export default function TransactionForm({
                 </div>
 
                 {/* Tag inputs */}
-                <div className="grid gap-4 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-                  <div className="space-y-2">
+                <div className="space-y-3 px-4 py-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <label
-                      className={`text-sm font-medium ${
+                      className={`text-sm font-semibold ${
                         debtMode === "collect" ? "text-emerald-800" : "text-amber-800"
                       }`}
                       htmlFor={debtMode === "collect" ? debtCycleInputId : debtTagInputId}
@@ -971,6 +974,29 @@ export default function TransactionForm({
                         ? t("transactionForm.debt.cycleLabel")
                         : t("transactionForm.debt.tagLabel")}
                     </label>
+                    {debtMode === "lend" ? (
+                      <label className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-white px-3 py-2 text-sm font-medium text-amber-700 shadow-sm">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                          checked={useLastMonthTag}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setUseLastMonthTag(checked);
+                            if (checked) {
+                              const d = new Date();
+                              d.setMonth(d.getMonth() - 1, 1);
+                              setDebtTagValue(formatDateTag(d) ?? "");
+                            } else if (!debtTagValue.trim()) {
+                              setDebtTagValue(formatDateTag(new Date()) ?? "");
+                            }
+                          }}
+                        />
+                        {t("transactionForm.debt.lastMonthToggle")}
+                      </label>
+                    ) : null}
+                  </div>
+                  <div className="space-y-2">
                     <input
                       id={debtMode === "collect" ? debtCycleInputId : debtTagInputId}
                       list={debtTagListId}
@@ -980,7 +1006,7 @@ export default function TransactionForm({
                           ? setDebtCycleTagValue(e.target.value)
                           : setDebtTagValue(e.target.value)
                       }
-                      className={`w-full rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 ${
+                      className={`w-full rounded-lg px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 ${
                         debtMode === "collect"
                           ? "border border-emerald-200 focus:border-emerald-500 focus:ring-emerald-200"
                           : "border border-amber-200 focus:border-amber-500 focus:ring-amber-200"
@@ -1008,28 +1034,6 @@ export default function TransactionForm({
                       )}
                     </p>
                   </div>
-
-                  {debtMode === "lend" ? (
-                    <label className="inline-flex items-center gap-2 rounded-md border border-amber-200 bg-white px-3 py-2 text-sm font-medium text-amber-700 shadow-sm">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
-                        checked={useLastMonthTag}
-                        onChange={(e) => {
-                          const checked = e.target.checked;
-                          setUseLastMonthTag(checked);
-                          if (checked) {
-                            const d = new Date();
-                            d.setMonth(d.getMonth() - 1, 1);
-                            setDebtTagValue(formatDateTag(d) ?? "");
-                          } else if (!debtTagValue.trim()) {
-                            setDebtTagValue(formatDateTag(new Date()) ?? "");
-                          }
-                        }}
-                      />
-                      {t("transactionForm.debt.lastMonthToggle")}
-                    </label>
-                  ) : null}
                 </div>
               </div>
 
@@ -1090,7 +1094,7 @@ export default function TransactionForm({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-4 py-3 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 block w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
             />
           </div>
 
@@ -1136,6 +1140,8 @@ export default function TransactionForm({
         open={isShopModalOpen}
         onClose={handleCloseShopModal}
         onCreate={handleCreateShopRecord}
+        availableTypes={availableShopTypes}
+        origin="transactions"
       />
     </>
   );
