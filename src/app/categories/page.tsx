@@ -19,7 +19,7 @@ async function getCategories(): Promise<CategoriesResult> {
   if (!supabaseClient) {
     const message =
       supabaseConfigurationError?.message ?? "Supabase client is not configured.";
-    console.error("Unable to fetch subcategories:", message);
+    console.error("Unable to fetch categories:", message);
     return { categories: [], errorMessage: message };
   }
 

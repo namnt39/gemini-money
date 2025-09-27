@@ -3,6 +3,7 @@ import AccountsTable from "@/components/AccountsTable";
 import StatCard from "@/components/StatCard";
 import { createTranslator } from "@/lib/i18n";
 import { getMockDashboardData } from "@/data/mockData";
+import { normalizeTransactionNature } from "@/lib/transactionNature";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "VND" }).format(amount);
@@ -22,10 +23,8 @@ export type Account = {
 type TransactionRecord = {
   amount: number;
   date: string;
-  subcategories?: {
-    categories?: {
-      transaction_nature?: string | null;
-    } | null;
+  category?: {
+    transaction_nature?: string | null;
   } | null;
 };
 
@@ -34,10 +33,8 @@ function buildFallbackDashboard(detail?: string) {
   const transactions = fallback.transactions.map<TransactionRecord>((transaction) => ({
     amount: transaction.amount,
     date: transaction.date,
-    subcategories: {
-      categories: {
-        transaction_nature: transaction.transactionNature,
-      },
+    category: {
+      transaction_nature: transaction.transactionNature,
     },
   }));
   const message = detail ? `${fallback.message} (${detail})` : fallback.message;
@@ -68,15 +65,15 @@ export default async function Home() {
         supabaseClient.from("accounts").select(),
         supabaseClient
           .from("transactions")
-          .select(`
+          .select(
+            `
         amount,
         date,
-        subcategories (
-          categories (
-            transaction_nature
-          )
+        category:categories!category_id (
+          transaction_nature
         )
-      `),
+      `
+          ),
       ]);
 
     const hasErrors = Boolean(accountsError || transactionsError);
@@ -103,22 +100,17 @@ export default async function Home() {
 
   const transactions = transactionsData || [];
 
-  const monthlyTransactions = transactions.filter(tx => new Date(tx.date) >= currentMonthStart);
-  
-  const totalIncomeThisMonth = monthlyTransactions
-    .filter(tx => tx.subcategories?.categories?.transaction_nature === 'IN')
-    .reduce((sum, tx) => sum + tx.amount, 0);
+  const monthlyTransactions = transactions.filter((tx) => new Date(tx.date) >= currentMonthStart);
 
-  const totalExpenseThisMonth = monthlyTransactions
-    .filter(tx => tx.subcategories?.categories?.transaction_nature === 'EX')
-    .reduce((sum, tx) => sum + tx.amount, 0);
-  
-  const totalIncomeAllTime = transactions
-    .filter(tx => tx.subcategories?.categories?.transaction_nature === 'IN')
-    .reduce((sum, tx) => sum + tx.amount, 0);
-  const totalExpenseAllTime = transactions
-    .filter(tx => tx.subcategories?.categories?.transaction_nature === 'EX')
-    .reduce((sum, tx) => sum + tx.amount, 0);
+  const isIncome = (tx: TransactionRecord) => normalizeTransactionNature(tx.category?.transaction_nature ?? null) === "IN";
+  const isExpense = (tx: TransactionRecord) => normalizeTransactionNature(tx.category?.transaction_nature ?? null) === "EX";
+
+  const totalIncomeThisMonth = monthlyTransactions.filter(isIncome).reduce((sum, tx) => sum + tx.amount, 0);
+
+  const totalExpenseThisMonth = monthlyTransactions.filter(isExpense).reduce((sum, tx) => sum + tx.amount, 0);
+
+  const totalIncomeAllTime = transactions.filter(isIncome).reduce((sum, tx) => sum + tx.amount, 0);
+  const totalExpenseAllTime = transactions.filter(isExpense).reduce((sum, tx) => sum + tx.amount, 0);
   const netWorth = totalIncomeAllTime - totalExpenseAllTime;
 
   return (
