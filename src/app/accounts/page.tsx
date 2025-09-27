@@ -1,21 +1,10 @@
-import AccountsTable from "@/components/AccountsTable";
+import AccountsTabs from "./_components/AccountsTabs";
+import type { AccountRecord } from "./_components/types";
 import { getMockDashboardData } from "@/data/mockData";
 import { createTranslator } from "@/lib/i18n";
 import { supabase, supabaseConfigurationError } from "@/lib/supabaseClient";
 
 export const dynamic = "force-dynamic";
-
-type AccountRecord = {
-  id: string;
-  name: string;
-  image_url: string | null;
-  type: string | null;
-  credit_limit: number | null;
-  created_at?: string | null;
-  is_cashback_eligible?: boolean | null;
-  cashback_percentage?: number | null;
-  max_cashback_amount?: number | null;
-};
 
 async function loadAccounts(): Promise<{ accounts: AccountRecord[]; errorMessage?: string }> {
   const supabaseClient = supabase;
@@ -48,10 +37,7 @@ export default async function AccountsPage() {
         <h1 className="text-3xl font-bold text-gray-800">{t("accountsPage.title")}</h1>
         <p className="text-sm text-gray-500">{t("accountsPage.description")}</p>
       </div>
-      {errorMessage ? (
-        <div className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{errorMessage}</div>
-      ) : null}
-      <AccountsTable accounts={accounts} />
+      <AccountsTabs accounts={accounts} errorMessage={errorMessage} />
     </div>
   );
 }

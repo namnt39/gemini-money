@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import Tooltip from "@/components/Tooltip";
 import RemoteImage from "@/components/RemoteImage";
-import { ClearIcon } from "@/components/Icons";
 import { createTranslator, isTranslationKey } from "@/lib/i18n";
 import { useAppShell } from "@/components/AppShellProvider";
 import AddShopModal from "@/components/shops/AddShopModal";
@@ -200,144 +199,176 @@ export default function ShopsView({ shops, errorMessage, returnTo, shouldOpenMod
   }, [navigate, returnTo]);
 
   return (
-    <div className="flex h-full flex-col gap-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-gray-900">{t("shops.title")}</h2>
-          <p className="text-sm text-gray-600">{t("shops.description")}</p>
-          <p className="text-xs text-gray-500">{t("shops.summary.count", { count: filteredRecords.length })}</p>
-          {errorMessage ? <p className="text-xs text-red-600">{errorMessage}</p> : null}
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <label className="flex flex-col text-xs font-semibold uppercase tracking-wide text-gray-600">
-            <span>{t("shops.filters.typeLabel")}</span>
-            <select
-              value={typeFilter}
-              onChange={(event) => setTypeFilter(event.target.value)}
-              className="mt-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-            >
-              {typeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={handleOpenModal}
-            className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-          >
-            {t("shops.actions.addNew")}
-          </button>
-        </div>
-      </div>
-
-      <div className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-4">
-          <div className="relative">
-            <input
-              ref={searchInputRef}
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder={t("shops.filters.searchPlaceholder")}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-            />
-            {searchTerm ? (
-              <button
-                type="button"
-                onClick={handleSearchClear}
-                className="absolute right-1 top-1 inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent text-gray-500 transition hover:border-gray-200 hover:bg-gray-50"
-                aria-label={t("common.clear")}
-              >
-                <ClearIcon />
-              </button>
-            ) : null}
+    <div className="space-y-6">
+      <section className="space-y-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold text-gray-900">{t("shops.title")}</h2>
+            <p className="text-sm text-gray-600">{t("shops.description")}</p>
+            <p className="text-xs text-gray-500">{t("shops.summary.count", { count: filteredRecords.length })}</p>
+            {errorMessage ? <p className="text-xs text-rose-600">{errorMessage}</p> : null}
           </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <label className="flex flex-col text-xs font-semibold uppercase tracking-wide text-gray-600">
+              <span>{t("shops.filters.typeLabel")}</span>
+              <select
+                value={typeFilter}
+                onChange={(event) => setTypeFilter(event.target.value)}
+                className="mt-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              >
+                {typeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={handleOpenModal}
+              className="inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+            >
+              {t("shops.actions.addNew")}
+            </button>
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="flex flex-col gap-2 text-sm font-medium text-gray-700" htmlFor="shops-search">
+            <span>{t("shops.fields.name")}</span>
+            <div className="relative">
+              <input
+                id="shops-search"
+                ref={searchInputRef}
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder={t("shops.filters.searchPlaceholder")}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+              {searchTerm ? (
+                <button
+                  type="button"
+                  onClick={handleSearchClear}
+                  className="absolute right-1 top-1 inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent text-gray-500 transition hover:border-gray-200 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                  aria-label={t("common.clear")}
+                >
+                  ×
+                </button>
+              ) : null}
+            </div>
+          </label>
+        </div>
+      </section>
 
-          <ul className="divide-y divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white">
-            {filteredRecords.map((shop) => {
-              const isActive = activeId === shop.id;
-              const typeLabel = getTypeLabel(shop.type ?? null, t);
-              return (
-                <li key={shop.id}>
+      <div className="grid gap-4 lg:grid-cols-12">
+        <section className="lg:col-span-5">
+          <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+            <header className="border-b border-gray-100 px-4 py-3">
+              <h3 className="text-sm font-semibold text-gray-800">{t("shops.fields.name")}</h3>
+            </header>
+            <ul className="divide-y divide-gray-200" role="list">
+              {filteredRecords.map((shop) => {
+                const isActive = activeId === shop.id;
+                const typeLabel = getTypeLabel(shop.type ?? null, t);
+                return (
+                  <li key={shop.id}>
+                    <button
+                      type="button"
+                      onClick={() => setActiveId(shop.id)}
+                      className={`flex w-full items-center gap-3 px-4 py-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 ${
+                        isActive ? "bg-indigo-50" : "hover:bg-gray-50"
+                      }`}
+                      aria-current={isActive ? "true" : undefined}
+                    >
+                      {shop.image_url ? (
+                        <RemoteImage
+                          src={shop.image_url}
+                          alt={shop.name}
+                          className="h-10 w-10 flex-shrink-0 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-sm font-semibold text-indigo-700">
+                          {buildInitials(shop.name)}
+                        </span>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-gray-900">{shop.name}</p>
+                        <p className="truncate text-xs text-gray-500">{typeLabel}</p>
+                      </div>
+                      <Tooltip label={formatCreatedAt(shop.created_at ?? null)}>
+                        <span className="text-xs text-gray-500">{formatCreatedAt(shop.created_at ?? null)}</span>
+                      </Tooltip>
+                    </button>
+                  </li>
+                );
+              })}
+              {filteredRecords.length === 0 ? (
+                <li className="px-4 py-8 text-center text-sm text-gray-500">{t("shops.empty")}</li>
+              ) : null}
+            </ul>
+          </div>
+        </section>
+
+        <section className="lg:col-span-7">
+          <div className="flex h-full flex-col gap-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            {activeRecord ? (
+              <>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+                  {activeRecord.image_url ? (
+                    <RemoteImage
+                      src={activeRecord.image_url}
+                      alt={activeRecord.name}
+                      className="h-16 w-16 flex-shrink-0 rounded-xl object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-lg font-semibold text-indigo-700">
+                      {buildInitials(activeRecord.name)}
+                    </span>
+                  )}
+                  <div className="min-w-0 space-y-1">
+                    <h3 className="truncate text-xl font-semibold text-gray-900">{activeRecord.name}</h3>
+                    <p className="text-sm text-gray-500">{getTypeLabel(activeRecord.type ?? null, t)}</p>
+                  </div>
+                </div>
+                <dl className="grid grid-cols-1 gap-6 text-sm text-gray-600 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t("shops.fields.type")}</dt>
+                    <dd>{getTypeLabel(activeRecord.type ?? null, t)}</dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t("shops.fields.created")}</dt>
+                    <dd>{formatCreatedAt(activeRecord.created_at ?? null)}</dd>
+                  </div>
+                  {activeRecord.notes ? (
+                    <div className="sm:col-span-2">
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t("common.notes")}</dt>
+                      <dd className="whitespace-pre-wrap text-gray-700">{activeRecord.notes}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+                <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
-                    onClick={() => setActiveId(shop.id)}
-                    className={`flex w-full items-center gap-3 px-4 py-3 text-left transition ${
-                      isActive ? "bg-indigo-50" : "hover:bg-gray-50"
-                    }`}
+                    onClick={handleOpenModal}
+                    className="inline-flex items-center justify-center rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:border-indigo-300 hover:text-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
                   >
-                    {shop.image_url ? (
-                      <RemoteImage
-                        src={shop.image_url}
-                        alt={shop.name}
-                        className="h-10 w-10 flex-shrink-0 rounded-lg object-cover"
-                      />
-                    ) : (
-                      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-sm font-semibold text-indigo-700">
-                        {buildInitials(shop.name)}
-                      </span>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-gray-900">{shop.name}</p>
-                      <p className="truncate text-xs text-gray-500">{typeLabel}</p>
-                    </div>
-                    <Tooltip label={formatCreatedAt(shop.created_at ?? null)}>
-                      <span className="text-xs text-gray-500">{formatCreatedAt(shop.created_at ?? null)}</span>
-                    </Tooltip>
+                    {t("shops.actions.addNew")}
                   </button>
-                </li>
-              );
-            })}
-            {filteredRecords.length === 0 ? (
-              <li className="p-6 text-center text-sm text-gray-500">{t("shops.empty")}</li>
-            ) : null}
-          </ul>
-        </div>
-
-        <div className="flex min-h-[240px] items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white p-6">
-          {activeRecord ? (
-            <div className="flex w-full flex-col gap-4">
-              <div className="flex items-center gap-4">
-                {activeRecord.image_url ? (
-                  <RemoteImage
-                    src={activeRecord.image_url}
-                    alt={activeRecord.name}
-                    className="h-14 w-14 flex-shrink-0 rounded-xl object-cover"
-                  />
-                ) : (
-                  <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-base font-semibold text-indigo-700">
-                    {buildInitials(activeRecord.name)}
-                  </span>
-                )}
-                <div className="min-w-0">
-                  <h3 className="truncate text-lg font-semibold text-gray-900">{activeRecord.name}</h3>
-                  <p className="truncate text-sm text-gray-500">{getTypeLabel(activeRecord.type ?? null, t)}</p>
+                  <button
+                    type="button"
+                    onClick={handleNavigateToTransactions}
+                    className="inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                  >
+                    {t("shops.modal.submit")}
+                  </button>
                 </div>
+              </>
+            ) : (
+              <div className="flex flex-1 items-center justify-center text-sm text-gray-500">
+                {t("shops.empty")}
               </div>
-
-              <dl className="grid grid-cols-1 gap-4 text-sm text-gray-600 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <dt className="font-medium text-gray-500">{t("shops.fields.type")}</dt>
-                  <dd>{getTypeLabel(activeRecord.type ?? null, t)}</dd>
-                </div>
-                <div className="space-y-1">
-                  <dt className="font-medium text-gray-500">{t("shops.fields.created")}</dt>
-                  <dd>{formatCreatedAt(activeRecord.created_at ?? null)}</dd>
-                </div>
-                {activeRecord.notes ? (
-                  <div className="sm:col-span-2">
-                    <dt className="font-medium text-gray-500">{t("common.notes")}</dt>
-                    <dd className="whitespace-pre-wrap text-gray-700">{activeRecord.notes}</dd>
-                  </div>
-                ) : null}
-              </dl>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">{t("shops.empty")}</p>
-          )}
-        </div>
+            )}
+          </div>
+        </section>
       </div>
 
       <AddShopModal
