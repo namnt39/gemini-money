@@ -23,6 +23,7 @@ type TransactionFormProps = {
   subcategories: Subcategory[];
   people: Person[];
   shops: Shop[];
+  usingMockSubcategories: boolean;
   returnTo: string;
   createdSubcategoryId?: string;
   initialTab?: Tab;
@@ -183,6 +184,7 @@ export default function TransactionForm({
   subcategories,
   people,
   shops,
+  usingMockSubcategories,
   returnTo,
   createdSubcategoryId,
   initialTab,
@@ -379,6 +381,12 @@ export default function TransactionForm({
   );
 
   const isShopCategory = selectedSubcategory?.is_shop ?? false;
+
+  useEffect(() => {
+    if (usingMockSubcategories && subcategoryId) {
+      setSubcategoryId("");
+    }
+  }, [subcategoryId, usingMockSubcategories]);
 
   const shouldShowShopSection = useMemo(() => {
     if (activeTab === "debt") return true;
@@ -621,6 +629,8 @@ export default function TransactionForm({
     }
   }, [activeTab, t]);
 
+  const allowManagingCategories = !usingMockSubcategories;
+
   const handleAddAccount = useCallback(() => {
     alert(t("transactionForm.addAccountPlaceholder"));
   }, [t]);
@@ -813,6 +823,16 @@ export default function TransactionForm({
         </div>
 
         <div className={contentWrapperClasses}>
+          {usingMockSubcategories ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <p className="font-semibold">No categories available</p>
+              <p className="mt-1">
+                Subcategories are currently unavailable. Please seed categories in Supabase before creating new
+                transactions.
+              </p>
+            </div>
+          ) : null}
+
           {/* Amount + Date */}
           <div className="grid gap-6 md:grid-cols-2">
             <AmountInput value={amount} onChange={setAmount} />
@@ -863,8 +883,9 @@ export default function TransactionForm({
                 value={subcategoryId}
                 onChange={setSubcategoryId}
                 options={expenseCategories}
-                onAddNew={handleAddCategory}
-                addNewLabel={addCategoryLabel}
+                disabled={usingMockSubcategories}
+                onAddNew={allowManagingCategories ? handleAddCategory : undefined}
+                addNewLabel={allowManagingCategories ? addCategoryLabel : undefined}
               />
             </>
           )}
@@ -885,8 +906,9 @@ export default function TransactionForm({
                 value={subcategoryId}
                 onChange={setSubcategoryId}
                 options={incomeCategories}
-                onAddNew={handleAddCategory}
-                addNewLabel={addCategoryLabel}
+                disabled={usingMockSubcategories}
+                onAddNew={allowManagingCategories ? handleAddCategory : undefined}
+                addNewLabel={allowManagingCategories ? addCategoryLabel : undefined}
               />
             </>
           )}

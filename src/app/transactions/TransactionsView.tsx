@@ -29,6 +29,7 @@ type TransactionsViewProps = {
   formSubcategories: Subcategory[];
   formPeople: Person[];
   formShops: Shop[];
+  formUsingMockSubcategories: boolean;
 };
 
 type NatureTab = {
@@ -529,6 +530,7 @@ export default function TransactionsView({
   formSubcategories,
   formPeople,
   formShops,
+  formUsingMockSubcategories,
 }: TransactionsViewProps) {
   const t = createTranslator();
   const router = useRouter();
@@ -2051,6 +2053,7 @@ export default function TransactionsView({
             subcategories={formSubcategories}
             people={formPeople}
             shops={formShops}
+            usingMockSubcategories={formUsingMockSubcategories}
             returnTo={currentReturnPath}
             initialTab={modalInitialTab}
             mode={editingTransaction ? "edit" : "create"}

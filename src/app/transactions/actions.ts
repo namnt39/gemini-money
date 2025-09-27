@@ -14,6 +14,8 @@ const revalidateTransactionViews = () => {
 const SUPABASE_UNAVAILABLE_MESSAGE =
   "The database connection is not configured. Please contact support.";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 type SupabaseResolution =
   | { supabaseClient: ReturnType<typeof requireSupabaseClient>; errorMessage?: undefined }
   | { supabaseClient: null; errorMessage: string };
@@ -70,6 +72,10 @@ async function persistTransaction(data: TransactionData, options: { id?: string 
   const normalizedPersonId = data.personId?.trim() || null;
   const normalizedShopId = data.shopId?.trim() || null;
   const normalizedNotes = data.notes?.trim() ? data.notes.trim() : null;
+
+  if (normalizedSubcategoryId && !UUID_REGEX.test(normalizedSubcategoryId)) {
+    return { success: false, message: "Please select a valid category before saving." };
+  }
 
   let cashbackPercent: number | null = null;
   let cashbackAmount: number | null = null;

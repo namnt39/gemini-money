@@ -344,6 +344,7 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
         formSubcategories={formData.subcategories}
         formPeople={formData.people}
         formShops={formData.shops}
+        formUsingMockSubcategories={formData.usingMockSubcategories}
       />
     </div>
   );
