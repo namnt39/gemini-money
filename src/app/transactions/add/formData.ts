@@ -100,6 +100,7 @@ type FormDataResult = {
   subcategories: Subcategory[];
   people: Person[];
   shops: Shop[];
+  usingMockSubcategories: boolean;
 };
 
 const fallbackShops: Shop[] = [
@@ -122,7 +123,7 @@ const fallbackShops: Shop[] = [
 ];
 
 const DEFAULT_TRANSFER_CATEGORY: Subcategory = {
-  id: "sub-transfer-generic",
+  id: "a6f07c8d-4ec6-4c2b-8a7e-d2a5f8d5c1f0",
   name: "General Transfer",
   image_url: null,
   transaction_nature: "TF",
@@ -215,6 +216,7 @@ export async function loadTransactionFormData(): Promise<FormDataResult> {
         : [...normalizedSubcategories, DEFAULT_TRANSFER_CATEGORY],
       people: normalizedPeople,
       shops: fallbackShops,
+      usingMockSubcategories: true,
     };
   }
 
@@ -274,26 +276,10 @@ export async function loadTransactionFormData(): Promise<FormDataResult> {
     })
   );
 
-  if (normalizedSubcategories.length === 0) {
-    const fallback = getMockTransactionFormData();
-    normalizedSubcategories = fallback.subcategories.map((subcategory) =>
-      mapSubcategoryRecord({
-        id: subcategory.id,
-        name: subcategory.name,
-        image_url: subcategory.image_url,
-        transaction_nature: subcategory.transaction_nature,
-        is_shop: subcategory.is_shop ?? false,
-        categories: subcategory.categories,
-      })
-    );
-  }
+  const usingMockSubcategories = normalizedSubcategories.length === 0;
 
-  const hasTransferSubcategory = normalizedSubcategories.some(
-    (subcategory) => normalizeTransactionNature(subcategory.transaction_nature ?? null) === "TF"
-  );
-
-  if (!hasTransferSubcategory) {
-    normalizedSubcategories.push(DEFAULT_TRANSFER_CATEGORY);
+  if (usingMockSubcategories) {
+    normalizedSubcategories = [];
   }
 
   const typedAccounts = (accounts as Account[] | null) || [];
@@ -305,6 +291,7 @@ export async function loadTransactionFormData(): Promise<FormDataResult> {
     subcategories: normalizedSubcategories,
     people: typedPeople,
     shops: typedShops.length > 0 ? typedShops : fallbackShops,
+    usingMockSubcategories,
   };
 }
 

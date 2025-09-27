@@ -34,7 +34,7 @@ type AddTransactionPageProps = {
 
 export default async function AddTransactionPage({ searchParams }: AddTransactionPageProps) {
   const params = await resolveSearchParams(searchParams);
-  const { accounts, subcategories, people, shops } = await loadTransactionFormData();
+  const { accounts, subcategories, people, shops, usingMockSubcategories } = await loadTransactionFormData();
   const createdSubcategoryId = typeof params.createdSubcategoryId === "string" ? params.createdSubcategoryId : undefined;
   const tabParam = typeof params.tab === "string" ? params.tab.toLowerCase() : undefined;
   const initialTab =
@@ -52,6 +52,7 @@ export default async function AddTransactionPage({ searchParams }: AddTransactio
           subcategories={subcategories}
           people={people}
           shops={shops}
+          usingMockSubcategories={usingMockSubcategories}
           returnTo={returnTo}
           createdSubcategoryId={createdSubcategoryId}
           initialTab={initialTab}
